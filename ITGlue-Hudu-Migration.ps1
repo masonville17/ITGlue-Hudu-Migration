@@ -181,8 +181,6 @@ $ErroredItemsFolder = if ($ErroredItemsFolder) {$ErroredItemsFolder} else {(Get-
 
 ############################### Companies ###############################
 
-read-host "contacts named $ConImportAssetLayoutName and locations named $LocImportAssetLayoutName will be created in Hudu if not already found. Press any key to continue or CTRL+C to quit"
-
 #Grab existing companies in Hudu
 $HuduCompanies = Get-HuduCompanies
 
