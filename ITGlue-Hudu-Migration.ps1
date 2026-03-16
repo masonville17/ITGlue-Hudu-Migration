@@ -141,6 +141,8 @@ $backups=$(if ($true -eq $NonInteractive) {"Y"} else {Read-Host "Y/n"})
 $ScriptStartTime = $(Get-Date -Format "o")
 $CurrentVersion =  Set-ExternalModulesInitialized -RequiredHuduVersion ([version]"2.39.6") -DisallowedVersions @([version]"2.37.0")
 
+
+
 if ($true -eq $allowSettingFlagsAndTypes){. .\Public\Get-UserFlagPreferences.ps1} else {$allowSettingFlagsAndTypes = $false; $flagPasswordsByType = $false; $ObjectFlagMap = @{};}
 # Check if we have a logs folder
 
@@ -178,6 +180,8 @@ $objectFlagMap = $objectFlagMap ?? @{}
 $ErroredItemsFolder = if ($ErroredItemsFolder) {$ErroredItemsFolder} else {(Get-EnsuredPath -path $(join-path $(Resolve-Path .).path "debug"))}
 
 ############################### Companies ###############################
+
+read-host "contacts named $ConImportAssetLayoutName and locations named $LocImportAssetLayoutName will be created in Hudu if not already found. Press any key to continue or CTRL+C to quit"
 
 #Grab existing companies in Hudu
 $HuduCompanies = Get-HuduCompanies

@@ -128,4 +128,7 @@ $allowSettingFlagsAndTypes = $false # you can set to True if you want all object
 # 932
 # )
 
+$LocImportAssetLayoutName = "Locations" # name for locations layout
+$ConImportAssetLayoutName = "People" # name for contacts/people layout
+
 . .\ITGlue-Hudu-Migration.ps1
