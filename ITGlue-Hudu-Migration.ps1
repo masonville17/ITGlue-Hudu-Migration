@@ -280,7 +280,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Companies.json")) {
 
     if (($PrimaryCompany | measure-object).count -ne 1) {
         Write-Host "A single Internal Company was not found please run the script again and check the company name entered exactly matches what is in ITGlue" -foregroundcolor red
-        exit 1
+        # exit 1
     }
 
     # Lets confirm it is the correct one
@@ -455,6 +455,18 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Locations.json")) {
             field_type   = 'RichText'
             show_in_list = 'false'
             position     = 9
+        },
+        @{
+            label        = 'ITG Date Created'
+            field_type   = 'Date'
+            show_in_list = 'true'
+            position     = 10
+        },
+        @{
+            label        = 'ITG Date Last Updated'
+            field_type   = 'Date'
+            show_in_list = 'true'
+            position     = 11
         }
     )
     if ($settings.IncludeITGlueID -and $true -eq $settings.IncludeITGlueID){
@@ -472,7 +484,9 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Locations.json")) {
             'country'     = $unmatchedImport."ITGObject".attributes."country-name"
             'phone'       = $unmatchedImport."ITGObject".attributes."phone"
             'fax'         = $unmatchedImport."ITGObject".attributes."fax"
-            'notes'       = $unmatchedImport."ITGObject".attributes."notes"		
+            'notes'       = $unmatchedImport."ITGObject".attributes."notes"
+            'ITG Date Created'          = $unmatchedImport."ITGObject".attributes."created-at"
+            'ITG Date Last Updated'     = $unmatchedImport."ITGObject".attributes."updated-at"
             'ITGlue ID'   = $unmatchedImport."ITGObject".id
         } }            
     } else {
@@ -486,6 +500,8 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Locations.json")) {
             'phone'       = $unmatchedImport."ITGObject".attributes."phone"
             'fax'         = $unmatchedImport."ITGObject".attributes."fax"
             'notes'       = $unmatchedImport."ITGObject".attributes."notes"		
+            'ITG Date Created'          = $unmatchedImport."ITGObject".attributes."created-at"
+            'ITG Date Last Updated'     = $unmatchedImport."ITGObject".attributes."updated-at"
         } }
     }
 
@@ -793,6 +809,18 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Configurations.json")
             field_type   = 'Text'
             show_in_list = 'false'
             position     = 23
+        },
+        @{
+            label        = 'ITG Date Created'
+            field_type   = 'Date'
+            show_in_list = 'true'
+            position     = 24
+        },
+        @{
+            label        = 'ITG Date Last Updated'
+            field_type   = 'Date'
+            show_in_list = 'true'
+            position     = 25
         }
     )
     $ConfigHuduItemFilter = { ($_.name -eq $itgimport.attributes.name -and $_.company_id -eq $itgimport.HuduCompanyId) }
@@ -826,7 +854,9 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Configurations.json")
             'operating system name'     = $unmatchedImport."ITGObject".attributes."operating-system-name"
             'location name'             = $unmatchedImport."ITGObject".attributes."location-name"
             'model name'                = $unmatchedImport."ITGObject".attributes."model-name"
-            'contact name'              = $unmatchedImport."ITGObject".attributes."contact-name"	
+            'contact name'              = $unmatchedImport."ITGObject".attributes."contact-name"
+            'ITG Date Created'          = $unmatchedImport."ITGObject".attributes."created-at"	
+            'ITG Date Last Updated'     = $unmatchedImport."ITGObject".attributes."updated-at"            
             'ITGlue ID'                 = $unmatchedImport."ITGObject".id
         } }    
     } else {
@@ -852,7 +882,9 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Configurations.json")
             'operating system name'     = $unmatchedImport."ITGObject".attributes."operating-system-name"
             'location name'             = $unmatchedImport."ITGObject".attributes."location-name"
             'model name'                = $unmatchedImport."ITGObject".attributes."model-name"
-            'contact name'              = $unmatchedImport."ITGObject".attributes."contact-name"	
+            'contact name'              = $unmatchedImport."ITGObject".attributes."contact-name"
+            'ITG Date Created'          = $unmatchedImport."ITGObject".attributes."created-at"	
+            'ITG Date Last Updated'     = $unmatchedImport."ITGObject".attributes."updated-at"            	
         } }
     }
 
@@ -1056,6 +1088,18 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Contacts.json")) {
             field_type   = 'RichText'
             show_in_list = 'false'
             position     = 9
+        },
+        @{
+            label        = 'ITG Date Created'
+            field_type   = 'Date'
+            show_in_list = 'true'
+            position     = 10
+        }    
+        @{
+            label        = 'ITG Date Last Updated'
+            field_type   = 'Date'
+            show_in_list = 'true'
+            position     = 11
         }
     )
     if ($settings.IncludeITGlueID -and $true -eq $settings.IncludeITGlueID){
@@ -1073,7 +1117,9 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Contacts.json")) {
             'important'    = $unmatchedImport."ITGObject".attributes."important"
             'notes'        = $unmatchedImport."ITGObject".attributes."notes"
             'emails'       = $unmatchedImport."ITGObject".attributes."contact-emails" | convertto-html -fragment | out-string
-            'phones'       = $unmatchedImport."ITGObject".attributes."contact-phones"	| convertto-html -fragment | out-string
+            'phones'       = $unmatchedImport."ITGObject".attributes."contact-phones" | convertto-html -fragment | out-string
+            'ITG Date Created'   = $unmatchedImport."ITGObject".attributes."created-at"
+            'ITG Date Last Updated'   = $unmatchedImport."ITGObject".attributes."updated-at"
             'ITGlue ID'    = $unmatchedImport."ITGObject".id
         } } 
     } else {
@@ -1087,6 +1133,8 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Contacts.json")) {
             'notes'        = $unmatchedImport."ITGObject".attributes."notes"
             'emails'       = $unmatchedImport."ITGObject".attributes."contact-emails" | convertto-html -fragment | out-string
             'phones'       = $unmatchedImport."ITGObject".attributes."contact-phones"	| convertto-html -fragment | out-string
+            'ITG Date Created'   = $unmatchedImport."ITGObject".attributes."created-at"
+            'ITG Date Last Updated'   = $unmatchedImport."ITGObject".attributes."updated-at"        
         } }
     }
 
@@ -1195,6 +1243,18 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\AssetLayouts.json")) 
 
 
             $TempLayoutFields = @(
+                @{
+                    label        = 'ITG Date Created'
+                    field_type   = 'Date'
+                    show_in_list = 'true'
+                    position     = 498
+                },
+                @{
+                    label        = 'ITG Date Last Updated'
+                    field_type   = 'Date'
+                    show_in_list = 'true'
+                    position     = 499
+                },                
                 @{
                     label        = 'Imported from ITGlue'
                     field_type   = 'Date'
@@ -1445,6 +1505,8 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Assets.json")) {
                     'Imported From ITGlue' = Get-Date -Format "o"
                     'ITGlue URL' = $ITGAsset.attributes.'resource-url'
                     'ITGlue ID' = $ITGAsset.id
+                    'ITG Date Created' = $(Get-CoercedDate $ITGAsset.attributes.'created-at')
+                    'ITG Date Last Updated' = $(Get-CoercedDate $ITGAsset.attributes.'updated-at')                    
                 }
 			
                 $NewHuduAsset = (New-HuduAsset -name $ITGAsset.attributes.name -company_id $HuduCompanyID -asset_layout_id $Layout.HuduObject.id -fields $AssetFields).asset
