@@ -1734,7 +1734,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\ArticleBase.json")) {
         $MatchedArticles = Foreach ($doc in $ITGDocuments) {
             Write-Host "Starting $($doc.name)" -ForegroundColor Green
             $dir = $files | Where-Object {
-                $_.PSIsContainer -and $_.Name -like "*$($doc.locator)*"
+                $_.PSIsContainer -and $_.Name -ilike "*$($doc.locator)*"
             } | Select-Object -First 1
 
             if (-not $dir) {
@@ -1743,7 +1743,9 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\ArticleBase.json")) {
             }
 
             $relativePath = [System.IO.Path]::GetRelativePath($ITGDocumentsPath, $dir.FullName)
-            $leafFolder = Split-Path $relativePath -Leaf
+            $folders = $relativePath -split '[\\/]'
+
+            $leafFolder = $folders[-1]
 
             if ($leafFolder -match '^\S+\s+(.+)$') {
                 $filename = $matches[1]
@@ -1751,13 +1753,8 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\ArticleBase.json")) {
                 $filename = $leafFolder
             }
 
-            $relativePath = [System.IO.Path]::GetRelativePath($ITGDocumentsPath, $dir.FullName)
-            $folders = $relativePath -split '[\\/]'
-
-            $filenameFromFolder = ($folders[-1] -split ' ', 2)[-1]
-            $filename = $filenameFromFolder
-
-            $pathtest = Test-Path -LiteralPath "$($dir.Fullname)\$($filename).html"
+            $fullHtmlPath = Join-Path $dir.FullName "$filename.html"
+            $pathtest = Test-Path -LiteralPath $fullHtmlPath
 
             if ($pathtest -eq $false) {
                 $filename = $doc.name
