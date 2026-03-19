@@ -1733,11 +1733,29 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\ArticleBase.json")) {
         # First lets find each article in the file system and then create blank stubs for them all so we can match relations later
         $MatchedArticles = Foreach ($doc in $ITGDocuments) {
             Write-Host "Starting $($doc.name)" -ForegroundColor Green
-            $dir = $files | Where-Object { $_.PSIsContainer -eq $true -and $_.Name -match $doc.locator }
-            $RelativePath = ($dir.FullName).Substring($ITGDocumentsPath.Length)
-            $folders = $RelativePath -split '\\'
-            $FilenameFromFolder = ($folders[$folders.count - 1] -split ' ', 2)[1]
-            $Filename = $FilenameFromFolder
+            $dir = $files | Where-Object {
+                $_.PSIsContainer -and $_.Name -like "*$($doc.locator)*"
+            } | Select-Object -First 1
+
+            if (-not $dir) {
+                Write-Host "Not Found $($doc.locator) this article will need to be migrated manually" -ForegroundColor Yellow
+                return
+            }
+
+            $relativePath = [System.IO.Path]::GetRelativePath($ITGDocumentsPath, $dir.FullName)
+            $leafFolder = Split-Path $relativePath -Leaf
+
+            if ($leafFolder -match '^\S+\s+(.+)$') {
+                $filename = $matches[1]
+            } else {
+                $filename = $leafFolder
+            }
+
+            $relativePath = [System.IO.Path]::GetRelativePath($ITGDocumentsPath, $dir.FullName)
+            $folders = $relativePath -split '[\\/]'
+
+            $filenameFromFolder = ($folders[-1] -split ' ', 2)[-1]
+            $filename = $filenameFromFolder
 
             $pathtest = Test-Path -LiteralPath "$($dir.Fullname)\$($filename).html"
 
