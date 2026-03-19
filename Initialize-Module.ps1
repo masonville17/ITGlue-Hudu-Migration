@@ -318,7 +318,7 @@ if ($InitType -eq 'Full') {
     }
 
     # The asset layout name how locations will appear in Hudu
-    $LocImportAssetLayoutName = "Locations"
+    $LocImportAssetLayoutName = $LocImportAssetLayoutName ?? "Locations"
 
     # The font awesome name for the locations icon in Hudu
     $LocImportIcon = "fas fa-building"
@@ -371,7 +371,7 @@ if ($InitType -eq 'Full') {
     }
 
     # The asset layout name how locations will appear in Hudu
-    $ConImportAssetLayoutName = "People"
+    $ConImportAssetLayoutName = $ConImportAssetLayoutName ?? "People"
 
     # The font awesome name for the locations icon in Hudu
     $ConImportIcon = "fas fa-users"
