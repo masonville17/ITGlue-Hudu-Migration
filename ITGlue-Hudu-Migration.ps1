@@ -1732,42 +1732,47 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\ArticleBase.json")) {
 
         # First lets find each article in the file system and then create blank stubs for them all so we can match relations later
         $MatchedArticles = Foreach ($doc in $ITGDocuments) {
-            Write-Host "Starting $($doc.name)" -ForegroundColor Green
-            $dir = $files | Where-Object {
-                $_.PSIsContainer -and $_.Name -ilike "*$($doc.locator)*"
-            } | Select-Object -First 1
+        Write-Host "Starting $($doc.name)" -ForegroundColor Green
 
-            if (-not $dir) {
-                Write-Host "Not Found $($doc.locator) this article will need to be migrated manually" -ForegroundColor Yellow
-                return
-            }
+        $escapedLocator = [WildcardPattern]::Escape($doc.locator)
+        $dir = $files | Where-Object {
+            $_.PSIsContainer -and $_.Name -like "*$escapedLocator*"
+        } | Select-Object -First 1
 
-            $relativePath = [System.IO.Path]::GetRelativePath($ITGDocumentsPath, $dir.FullName)
-            $folders = $relativePath -split '[\\/]'
+        if (-not $dir) {
+            Write-Host "Not Found $($doc.locator) this article will need to be migrated manually" -ForegroundColor Yellow
+            continue
+        }
 
-            $leafFolder = $folders[-1]
+        $relativePath = [System.IO.Path]::GetRelativePath($ITGDocumentsPath, $dir.FullName)
+        $folders = $relativePath -split '[\\/]'
+        $leafFolder = $folders[-1]
 
-            if ($leafFolder -match '^\S+\s+(.+)$') {
-                $filename = $matches[1]
-            } else {
-                $filename = $leafFolder
-            }
+        if ($leafFolder -match '^\S+\s+(.+)$') {
+            $FilenameFromFolder = $matches[1]
+        } else {
+            $FilenameFromFolder = $leafFolder
+        }
 
+        $filename = $FilenameFromFolder
+        $fullHtmlPath = Join-Path $dir.FullName "$filename.html"
+        $pathtest = Test-Path -LiteralPath $fullHtmlPath
+
+        if (-not $pathtest) {
+            $filename = $doc.name
             $fullHtmlPath = Join-Path $dir.FullName "$filename.html"
             $pathtest = Test-Path -LiteralPath $fullHtmlPath
 
-            if ($pathtest -eq $false) {
-                $filename = $doc.name
-                $pathtest = Test-Path -LiteralPath "$($dir.Fullname)\$($filename).html"
-                if ($pathtest -eq $false) {
-                    $filename = $FilenameFromFolder -replace '_', '$1,$2'
-                    $pathtest = Test-Path -LiteralPath "$($dir.Fullname)\$($filename).html"
-                    if ($pathtest -eq $false) {
-                        Write-Host "Not Found $($dir.Fullname)\$($filename).html this article will need to be migrated manually" -foregroundcolor red
-                        continue
-                    }
+            if (-not $pathtest) {
+                $filename = $FilenameFromFolder -replace '_', '$1,$2'
+                $fullHtmlPath = Join-Path $dir.FullName "$filename.html"
+                $pathtest = Test-Path -LiteralPath $fullHtmlPath
+
+                if (-not $pathtest) {
+                    Write-Host "Not Found $fullHtmlPath this article will need to be migrated manually" -ForegroundColor Red
+                    continue
                 }
-	
+            }
             }
 
 
