@@ -193,7 +193,7 @@ if ($true -eq $companyPasswordFolderAttributionMove -and $true -eq $GlobalPasswo
         $representedPct = $companyGroups.Count / $denom
         Write-Host ("Folder '{0}' has passwords from {1} company(ies) ({2:P1} of companies-with-passwords)" -f $folder.name, $companyGroups.Count, $representedPct)
 
-        if ($companyGroups.count -gt 1 -and $representedPct -lt $minCompanyPctForGlobalFolder) {
+        if ($companyGroups.count -eq 1 -or $representedPct -lt $minCompanyPctForGlobalFolder) {
             Write-Host ("Moving folder '{0}' because {1:P1} < threshold {2:P1}" -f $folder.name, $representedPct, $minCompanyPctForGlobalFolder)
             foreach ($companyId in $companyGroups) {
                 Write-Host "Company $companyId has password(s) in folder '$($folder.name)'"
