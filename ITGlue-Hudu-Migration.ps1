@@ -1522,11 +1522,8 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Assets.json")) {
                     "ITGObject"  = $ITGAsset
                     "Imported"   = "First Pass"
                 }
-
                 $null = $MatchedAssets.add($AssetDetails)
-
             }
-		
         }
 	
 	
@@ -1723,129 +1720,129 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\ArticleBase.json")) {
 	else {
  	 $GlobalKBFolder = $null
    	}
-	
 
-        $ITGDocuments = Import-CSV -Path (Join-Path -path $ITGLueExportPath -ChildPath "documents.csv")
-        [string]$ITGDocumentsPath = Join-Path -path $ITGLueExportPath -ChildPath "Documents"
 
-        $files = Get-ChildItem -Path $ITGDocumentsPath -recurse
+    $ITGDocuments = Import-CSV -Path (Join-Path -path $ITGLueExportPath -ChildPath "documents.csv")
+    [string]$ITGDocumentsPath = Join-Path -path $ITGLueExportPath -ChildPath "Documents"
 
-        # First lets find each article in the file system and then create blank stubs for them all so we can match relations later
-        $MatchedArticles = Foreach ($doc in $ITGDocuments) {
-        Write-Host "Starting $($doc.name)" -ForegroundColor Green
+    $files = Get-ChildItem -Path $ITGDocumentsPath -recurse
 
-        $escapedLocator = [WildcardPattern]::Escape($doc.locator)
-        $dir = $files | Where-Object {
-            $_.PSIsContainer -and $_.Name -like "*$escapedLocator*"
-        } | Select-Object -First 1
+    # First lets find each article in the file system and then create blank stubs for them all so we can match relations later
+    $MatchedArticles = Foreach ($doc in $ITGDocuments) {
+    Write-Host "Starting $($doc.name)" -ForegroundColor Green
 
-        if (-not $dir) {
-            Write-Host "Not Found $($doc.locator) this article will need to be migrated manually" -ForegroundColor Yellow
-            continue
-        }
+    $escapedLocator = [WildcardPattern]::Escape($doc.locator)
+    $dir = $files | Where-Object {
+        $_.PSIsContainer -and $_.Name -like "*$escapedLocator*"
+    } | Select-Object -First 1
 
-        $relativePath = [System.IO.Path]::GetRelativePath($ITGDocumentsPath, $dir.FullName)
-        $folders = $relativePath -split '[\\/]'
-        $leafFolder = $folders[-1]
+    if (-not $dir) {
+        Write-Host "Not Found $($doc.locator) this article will need to be migrated manually" -ForegroundColor Yellow
+        continue
+    }
 
-        if ($leafFolder -match '^\S+\s+(.+)$') {
-            $FilenameFromFolder = $matches[1]
-        } else {
-            $FilenameFromFolder = $leafFolder
-        }
+    $relativePath = [System.IO.Path]::GetRelativePath($ITGDocumentsPath, $dir.FullName)
+    $folders = $relativePath -split '[\\/]'
+    $leafFolder = $folders[-1]
 
-        $filename = $FilenameFromFolder
+    if ($leafFolder -match '^\S+\s+(.+)$') {
+        $FilenameFromFolder = $matches[1]
+    } else {
+        $FilenameFromFolder = $leafFolder
+    }
+
+    $filename = $FilenameFromFolder
+    $fullHtmlPath = Join-Path $dir.FullName "$filename.html"
+    $pathtest = Test-Path -LiteralPath $fullHtmlPath
+
+    if (-not $pathtest) {
+        $filename = $doc.name
         $fullHtmlPath = Join-Path $dir.FullName "$filename.html"
         $pathtest = Test-Path -LiteralPath $fullHtmlPath
 
         if (-not $pathtest) {
-            $filename = $doc.name
+            $filename = $FilenameFromFolder -replace '_', '$1,$2'
             $fullHtmlPath = Join-Path $dir.FullName "$filename.html"
             $pathtest = Test-Path -LiteralPath $fullHtmlPath
 
             if (-not $pathtest) {
-                $filename = $FilenameFromFolder -replace '_', '$1,$2'
-                $fullHtmlPath = Join-Path $dir.FullName "$filename.html"
-                $pathtest = Test-Path -LiteralPath $fullHtmlPath
-
-                if (-not $pathtest) {
-                    Write-Host "Not Found $fullHtmlPath this article will need to be migrated manually" -ForegroundColor Red
-                    continue
-                }
-            }
-            }
-
-
-            $company = $MatchedCompanies | Where-Object { $_.CompanyName -eq $doc.organization }
-            if (($company | Measure-Object).count -eq 1) {
-
-                $art_folder_id = $null
-                if ($company.InternalCompany -eq $false) {
-                    if (($folders | Measure-Object).count -gt 2) {
-                        # Make / Check Folders
-
-                        $art_folder_id = (Initialize-HuduFolder $folders[1..$($folders.count - 2)] -company_id $company.HuduID).id
-                    }
-                    $ArticleSplat = @{
-                        name       = $doc.name
-                        content    = "Migration in progress"
-                        company_id = $company.HuduID
-                        folder_id  = $art_folder_id
-                    }	
-                } else {
-                    if (($folders | Measure-Object).count -gt 2) {
-                        # Make / Check Folders
-                        $folders = $folders[1..$($folders.count - 2)]
-                        if ($GlobalKBFolder) {
-                            $folders = @($GlobalKBFolder.name) + $folders
-                        }
-                        $art_folder_id = (Initialize-HuduFolder $folders).id
-                    }
-                    else {
-                        # Check for GlobalKB Folder being set
-                        if ($GlobalKBFolder) {
-                            $art_folder_id = $GlobalKBFolder.id
-                        }
-                    }
-                    $ArticleSplat = @{
-                        name      = $doc.name
-                        content   = "Migration in progress"
-                        folder_id = $art_folder_id
-                    }	
-                }
-		
-
-
-
-            } else {
-                Write-Host "Company $($doc.organization) Not Found Please migrate $($doc.name) manually"
+                Write-Host "Not Found $fullHtmlPath this article will need to be migrated manually" -ForegroundColor Red
                 continue
             }
+        }
+        }
 
 
-            $NewArticle = (New-HuduArticle @ArticleSplat).article
+        $company = $MatchedCompanies | Where-Object { $_.CompanyName -eq $doc.organization }
+        if (($company | Measure-Object).count -eq 1) {
+
+            $art_folder_id = $null
             if ($company.InternalCompany -eq $false) {
-                Write-Host "Article created in $($company.CompanyName)"
+                if (($folders | Measure-Object).count -gt 2) {
+                    # Make / Check Folders
+
+                    $art_folder_id = (Initialize-HuduFolder $folders[1..$($folders.count - 2)] -company_id $company.HuduID).id
+                }
+                $ArticleSplat = @{
+                    name       = $doc.name
+                    content    = "Migration in progress"
+                    company_id = $company.HuduID
+                    folder_id  = $art_folder_id
+                }	
             } else {
-                Write-Host "Article created in GlobaL KB"
+                if (($folders | Measure-Object).count -gt 2) {
+                    # Make / Check Folders
+                    $folders = $folders[1..$($folders.count - 2)]
+                    if ($GlobalKBFolder) {
+                        $folders = @($GlobalKBFolder.name) + $folders
+                    }
+                    $art_folder_id = (Initialize-HuduFolder $folders).id
+                }
+                else {
+                    # Check for GlobalKB Folder being set
+                    if ($GlobalKBFolder) {
+                        $art_folder_id = $GlobalKBFolder.id
+                    }
+                }
+                $ArticleSplat = @{
+                    name      = $doc.name
+                    content   = "Migration in progress"
+                    folder_id = $art_folder_id
+                }	
             }
+    
 
 
-            [PSCustomObject]@{
-                "Name"       = $doc.name
-                "Filename"   = $Filename
-                "Path"       = $($dir.Fullname)
-                "FullPath"   = "$($dir.Fullname)\$($filename).html"
-                "ITGID"      = $doc.id
-                "ITGLocator" = $doc.locator
-                "HuduID"     = $NewArticle.ID
-                "HuduObject" = $NewArticle
-                "Folders"    = $folders
-                "Imported"   = "Stub-Created"
-                "Company"    = $company
-            }
 
-	
+        } else {
+            Write-Host "Company $($doc.organization) Not Found Please migrate $($doc.name) manually"
+            continue
+        }
+
+
+        $NewArticle = (New-HuduArticle @ArticleSplat).article
+        if ($company.InternalCompany -eq $false) {
+            Write-Host "Article created in $($company.CompanyName)"
+        } else {
+            Write-Host "Article created in GlobaL KB"
+        }
+
+
+        [PSCustomObject]@{
+            "Name"       = $doc.name
+            "Filename"   = $Filename
+            "Path"       = $($dir.Fullname)
+            "FullPath"   = "$($dir.Fullname)\$($filename).html"
+            "ITGID"      = $doc.id
+            "ITGLocator" = $doc.locator
+            "HuduID"     = $NewArticle.ID
+            "HuduObject" = $NewArticle
+            "Folders"    = $folders
+            "Imported"   = "Stub-Created"
+            "Company"    = $company
+        }
+
+
 
         }
         $MatchedArticles | ConvertTo-Json -depth 100 | Out-File "$MigrationLogs\ArticleBase.json"
