@@ -180,7 +180,7 @@ foreach ($itgcompanyID in ($matchedpasswords.ITGObject.attributes.'organization-
 $companyPasswordFolderAttributionMove = $companyPasswordFolderAttributionMove ?? $true
 $minCompanyPctForGlobalFolder = $minCompanyPctForGlobalFolder ?? 0.125 # defaults to 1/8th of companies with passwords as threshold for moving to global folder if using global password folder mode but allowing company attribution move
 
-if ($true -eq $companyPasswordFolderAttributionMove) {
+if ($true -eq $companyPasswordFolderAttributionMove -and $true -eq $GlobalPasswordFolderMode) {
     $allPasswordFolders = Get-HuduPasswordFolders | Where-Object { -not $_.company_id -or $_.company_id -lt 1 }
     $allPasswords = Get-HuduPasswords
     $companyIdsWithAnyPasswords = $allPasswords.company_id | Where-Object { $_ -ge 1 } | Sort-Object -Unique
@@ -193,7 +193,7 @@ if ($true -eq $companyPasswordFolderAttributionMove) {
         $representedPct = $companyGroups.Count / $denom
         Write-Host ("Folder '{0}' has passwords from {1} company(ies) ({2:P1} of companies-with-passwords)" -f $folder.name, $companyGroups.Count, $representedPct)
 
-        if ($companyGroups -gt 1 -and $representedPct -lt $minCompanyPctForGlobalFolder) {
+        if ($companyGroups.count -eq 1 -or $representedPct -lt $minCompanyPctForGlobalFolder) {
             Write-Host ("Moving folder '{0}' because {1:P1} < threshold {2:P1}" -f $folder.name, $representedPct, $minCompanyPctForGlobalFolder)
             foreach ($companyId in $companyGroups) {
                 Write-Host "Company $companyId has password(s) in folder '$($folder.name)'"
