@@ -63,7 +63,7 @@ foreach ($checklist in $ITGLueChecklists) {
         Description =  $($($checklist.attributes.description ?? "No description found for procedure.") + "`n" + 
             "Imported from ITGlue. <a href='$($checklist.attributes.'resource-url')'>itglue checklist url</a>")
     }
-    
+    $matchedCompany = $null
     $matchedCompany = $($($MatchedCompanies | Where-Object {[string]$checklist.attributes.'organization-id' -eq [string]$_.ITGID} | Select-Object -First 1))
 
     if ($matchedCompany -and $matchedCompany.HuduID -and $matchedCompany.HuduID -gt 0){
@@ -71,7 +71,10 @@ foreach ($checklist in $ITGLueChecklists) {
     }
 
     try {
-        $newProcedure = $(New-HuduProcedure @procedureRequest).procedure
+        $newProcedure = $null
+        $newProcedure = New-HuduProcedure @procedureRequest
+        $newProcedure = $newProcedure.procedure ?? $newProcedure
+
     } catch {
         Write-Host "Error creating procedure in Hudu $_"
         continue
@@ -82,54 +85,75 @@ foreach ($checklist in $ITGLueChecklists) {
         Write-Host "Created $(if (-not $newProcedure.company_id) {'Global'} else {'Company'}) Procedure $(if ($true -eq $checklist.IsTemplate) {'Template'}) $($ChecklistIDX) of $($ITGLueChecklists.count)"
 
         $TaskIDX=0
-        foreach ($task in $checklist.ITGChecklistItems){
-            $TaskIDX=$TaskIDX+1
 
-            $NewProcedureTask=$null
+        
+        foreach ($task in $checklist.ITGChecklistItems){
+            $TaskIDX = $TaskIDX + 1
+
+            $runTask = $($matchedCompany -and $newProcedure.company_id -and $newProcedure.company_id -gt 0) ? $true : $false
+            $NewProcedureTask = $null
             $DueDate = $null
-            $assigneeCandidates = @($checklist.attributes.'assignee-name',$task.attributes.'assignee-name') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }            
-            $priority="unsure"
+            $assignedUsers = @()
 
             $NewTaskRequest = @{
-                ProcedureId = $newProcedure.id 
-                Name = ($task.attributes.name ??
-                    ("Task #$($task.attributes.order)" ?? "Unnamed Task"))
-                Description = $($task.attributes.description ?? "Imported from ITglue with no description") 
-                AssignedUsers = @()                  
+                ProcedureId = $newProcedure.id
+                Name        = ($task.attributes.name ?? ("Task #$($task.attributes.order)" ?? "Unnamed Task"))
+                Description = ($task.attributes.description ?? "Imported from ITglue with no description")
             }
+
             if ($task.attributes.order) {
-                $NewTaskRequest["Position"]=$task.attributes.order
+                $NewTaskRequest["Position"] = $task.attributes.order
             }
-            
-            foreach ($a in $assigneeCandidates) {
-                $first,$last = ($a -replace '\s+', ' ').Trim() -split '\s+', 2
-                if ($last) {
-                    $key = "$first $last".ToLower()
-                    if ($userIndex.ContainsKey($key)) {
-                        $NewTaskRequest['AssignedUsers'] += $userIndex[$key].id
+
+            if ($true -eq $runtask -or ($CurrentVersion -and $CurrentVersion -lt [version]'2.41.0')){
+                $assigneeCandidates = @(
+                    $checklist.attributes.'assignee-name',
+                    $task.attributes.'assignee-name'
+                ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+                foreach ($a in $assigneeCandidates) {
+                    $first,$last = ($a -replace '\s+', ' ').Trim() -split '\s+', 2
+                    if ($last) {
+                        $key = "$first $last".ToLower()
+                        if ($userIndex.ContainsKey($key)) {
+                            $assignedUsers += $userIndex[$key].id
+                            $runTask = $true
+                        }
                     }
                 }
-            }
-            if ($task.attributes.'due-date') {
-                $dueDate = [datetime]$task.attributes.'due-date'
-                $NewTaskRequest['DueDate'] = $dueDate.ToString('yyyy-MM-dd')
-                $age = (Get-Date) - $dueDate
-                $priority = if ($age.TotalDays -lt 0)      { 'urgent' }
-                            elseif ($age.TotalDays -le 14) { 'high' }
-                            else                           { 'normal' }
-            } else { $priority = 'unsure' }
-            $NewTaskRequest['Priority'] = $priority
 
+                if ($assignedUsers.Count -gt 0) {
+                    $NewTaskRequest['AssignedUsers'] = $assignedUsers
+                }
+
+                if ($task.attributes.'due-date') {
+                    $runTask = $true
+                    $dueDate = [datetime]$task.attributes.'due-date'
+                    $NewTaskRequest['DueDate'] = $dueDate.ToString('yyyy-MM-dd')
+
+                    $age = (Get-Date) - $dueDate
+                    $NewTaskRequest['Priority'] = if ($age.TotalDays -lt 0) { 'urgent' }
+                                                elseif ($age.TotalDays -le 14) { 'high' }
+                                                else { 'normal' }
+                }
+            }
             try {
-                $NewProcedureTask=New-HuduProcedureTask @NewTaskRequest
-            }catch {
-                Write-Host "Error adding checklist $_"
+                Write-Verbose ("Creating procedure task against procedure_id={0}; isRun={1}; fields={2}" -f `
+                    $task.procedure_id,
+                    $isRun,
+                    (($task.Keys | Sort-Object) -join ', '))                
+                $NewProcedureTask = New-HuduProcedureTask @NewTaskRequest -RunTask:$runTask -AutoKickoff:$runTask
             }
+            catch {
+                Write-Host "Error adding checklist Task $_"
+            }
+
             if ($NewProcedureTask) {
-                Write-Host "Added $(if ($NewTaskRequest.AssignedUsers.count -gt 0) {'User-Assigned'} else {'Unassigned'}) procedure task $($TaskIDX) of $($checklist.ITGChecklistItems.count)"
-                $HuduProcedureTasks+=$NewProcedureTask
+                Write-Host "Added $(if (($assignedUsers).Count -gt 0) {'User-Assigned '} else {''})procedure task $($TaskIDX) of $($checklist.ITGChecklistItems.count)"
+                $HuduProcedureTasks += $NewProcedureTask
             }
-        }
+        }        
+        
         $checklist.HuduProcedure | Add-Member -MemberType 'NoteProperty' -Name 'HuduProcedureTasks' -Value $HuduProcedureTasks -Force
         $MatchedChecklists+=$checklist
     }
