@@ -90,7 +90,6 @@ foreach ($checklist in $ITGLueChecklists) {
         foreach ($task in $checklist.ITGChecklistItems){
             $TaskIDX = $TaskIDX + 1
 
-            $runTask = $($matchedCompany -and $newProcedure.company_id -and $newProcedure.company_id -gt 0) ? $true : $false
             $NewProcedureTask = $null
             $DueDate = $null
             $assignedUsers = @()
@@ -105,7 +104,7 @@ foreach ($checklist in $ITGLueChecklists) {
                 $NewTaskRequest["Position"] = $task.attributes.order
             }
 
-            if ($true -eq $runtask -or ($CurrentVersion -and $CurrentVersion -lt [version]'2.41.0')){
+            if ($CurrentVersion -and $CurrentVersion -lt [version]'2.41.0'){
                 $assigneeCandidates = @(
                     $checklist.attributes.'assignee-name',
                     $task.attributes.'assignee-name'
@@ -137,12 +136,8 @@ foreach ($checklist in $ITGLueChecklists) {
                                                 else { 'normal' }
                 }
             }
-            try {
-                Write-Verbose ("Creating procedure task against procedure_id={0}; isRun={1}; fields={2}" -f `
-                    $task.procedure_id,
-                    $isRun,
-                    (($task.Keys | Sort-Object) -join ', '))                
-                $NewProcedureTask = New-HuduProcedureTask @NewTaskRequest -RunTask:$runTask -AutoKickoff:$runTask
+            try {             
+                $NewProcedureTask = New-HuduProcedureTask @NewTaskRequest
             }
             catch {
                 Write-Host "Error adding checklist Task $_"
