@@ -388,6 +388,11 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Companies.json")) {
 $CompaniesToMigrate = $MatchedCompanies | Sort-Object CompanyName | Where-Object { $_.Matched -eq $true }
 $HuduCompanies = Get-HuduCompanies
 
+if (-not ([string]::IsNullOrWhiteSpace($ItglueJWT)) -and ($true -eq $importPasswordFolders -or $true -eq $importChecklists)) {
+    Write-Host "Since you have provided a JWT token and have checklist or password folder import enabled, we will preload these items from ITGlue before your credential becomes stale." -ForegroundColor Green
+    . $PSScriptRoot\Public\Preload-JWTOnlyItems.ps1
+}
+
 ############################### Locations ###############################
 #Check for Location Resume
 if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Locations.json")) {
