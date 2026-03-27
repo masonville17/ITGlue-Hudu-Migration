@@ -174,7 +174,9 @@ $MergedOrganizationSettings = @{
     TargetCompany = $null
 }
 $MatchedPasswordFolders = @()
-$MatchedChecklists = @()
+$MatchedChecklists = $MatchedChecklists ?? @(); $ITGlueRawChecklists = $ITGlueRawChecklists ?? @(); $ITglueChecklists = $ITglueChecklists ?? [System.Collections.ArrayList]@();
+$ITGlueSSLCerts = @()
+
 $objectFlagMap = $objectFlagMap ?? @{}
 
 $ErroredItemsFolder = if ($ErroredItemsFolder) {$ErroredItemsFolder} else {(Get-EnsuredPath -path $(join-path $(Resolve-Path .).path "debug"))}
