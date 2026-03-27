@@ -58,5 +58,24 @@ while ($true) {
     if (-not $ITGlueRawChecklists -or $ITGlueRawChecklists.count -lt $PageSize) {break}
 }
 Write-Host "Got $($($ITGLueChecklists | where-object {$_.IsTemplate -eq $false}).count) and $($($ITGLueChecklists | where-object {$_.IsTemplate -eq $true}).count) checklist templates with $($ITGlueRawChecklists.ITGChecklistItems.count) Checklist Items."
-$ITGLueChecklists | convertto-json -depth 99 | Out-File "$MigrationLogs\RetrievedChecklists.json"
-    $ITGLueChecklists = $ITGLueChecklists ?? $(Get-Content "$MigrationLogs\RetrievedChecklists.json" | ConvertFrom-Json -Depth 99)
+if ($ITGLueChecklists.Count -gt 0) {
+    $ITGLueChecklists | convertto-json -depth 99 | Out-File "$MigrationLogs\RetrievedChecklists.json"
+} else {
+    Write-Host "No checklists retrieved from ITGlue, skipping saving to file."
+}
+
+# Password Folders Data
+if (-not $MatchedCompanies -or $matchedCompanies.count -lt 1){
+    write-host "Can't preload password folders without matched companies, skipping preload of password folders."
+}
+$MatchedPasswordFolders = $MatchedPasswordFolders ?? @(); $preloadedPassFolders = $preloadedPassFolders ?? @{};
+foreach ($company in $MatchedCompanies) {
+    $ITGcompanyID = $company.ITGID ?? $company.ITGCompanyObject.id
+    if (-not $ITGcompanyID){continue}
+    $PasswordFoldersForCompany =  Get-ITGPasswordFolders -JWTAuthToken $ITGlueJWT -organization_id $ITGcompanyID -ComputePaths -Separator "<FDELIM>"
+    if ($PasswordFoldersForCompany -and $PasswordFoldersForCompany.Count -gt 0) {
+        $preloadedPassFolders["$($ITGcompanyID)"] = $PasswordFoldersForCompany
+    }
+}
+
+$preloadedPassFolders | ConvertTo-Json -Depth 99 | Out-File "$MigrationLogs\PreloadedPasswordFolders.json"

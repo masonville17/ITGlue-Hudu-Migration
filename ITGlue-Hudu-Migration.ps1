@@ -173,7 +173,7 @@ $MergedOrganizationSettings = @{
     Types        = @()
     TargetCompany = $null
 }
-$MatchedPasswordFolders = @()
+$MatchedPasswordFolders = $MatchedPasswordFolders ?? @(); $preloadedPassFolders = $preloadedPassFolders ?? @{};
 $MatchedChecklists = $MatchedChecklists ?? @(); $ITGlueRawChecklists = $ITGlueRawChecklists ?? @(); $ITglueChecklists = $ITglueChecklists ?? [System.Collections.ArrayList]@();
 $ITGlueSSLCerts = @()
 
