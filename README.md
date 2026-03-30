@@ -19,6 +19,9 @@ You'll want to make sure your Hudu instance is prepared for migration and that t
 
 **This is how most people run the migration.** The repository includes a pre-built Windows app at **`release/ITGlue-Hudu-Migration.exe`**. It runs the same interactive flow as the main PowerShell script and uses the same default settings location.
 
+<img width="1248" height="1066" alt="H83uf1uxHZ2OZnqzbyMXl (1)" src="https://github.com/user-attachments/assets/09386a13-79ab-4da2-8f46-cd121da5b5f0" /> <img width="1244" height="1192" alt="u8AsTcss0nzSAjYT5tXzc (1)" src="https://github.com/user-attachments/assets/eeb70697-89cc-4666-99cb-d7f46133600c" />
+
+
 - **How to run:** Clone or download the repository, open the **`release`** folder, and run **`ITGlue-Hudu-Migration.exe`** (double-click or from a terminal). You still need your ITGlue export ZIP, API keys, and a compatible Hudu instance—work through **What you'll need** and **Prerequisites** later in this document before you start.
 - **Settings:** Stored by default under `%APPDATA%\HuduMigration`, same as the PowerShell workflow.
 - **Use PowerShell instead** if you rely on a customized **`environ.example`**, want full session control over variables, or need post-run scripts such as **`Get-MissingRelations.ps1`**, **`Move-AssetsToNewLayout.ps1`**, **`Add-HuduAttachmentsViaAPI.ps1`**, or **`Replace-HuduBase64Images.ps1`** (these are not launched by the executable). See **Prerequisites - Migration Script Setup** below.
