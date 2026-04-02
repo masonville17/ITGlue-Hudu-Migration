@@ -173,8 +173,10 @@ $MergedOrganizationSettings = @{
     Types        = @()
     TargetCompany = $null
 }
-$MatchedPasswordFolders = @()
-$MatchedChecklists = @()
+$MatchedPasswordFolders = $MatchedPasswordFolders ?? @(); $preloadedPassFolders = $preloadedPassFolders ?? @{};
+$MatchedChecklists = $MatchedChecklists ?? @(); $ITGlueRawChecklists = $ITGlueRawChecklists ?? @(); $ITglueChecklists = $ITglueChecklists ?? [System.Collections.ArrayList]@();
+$ITGlueSSLCerts = @()
+
 $objectFlagMap = $objectFlagMap ?? @{}
 
 $ErroredItemsFolder = if ($ErroredItemsFolder) {$ErroredItemsFolder} else {(Get-EnsuredPath -path $(join-path $(Resolve-Path .).path "debug"))}
@@ -385,6 +387,11 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Companies.json")) {
 }
 $CompaniesToMigrate = $MatchedCompanies | Sort-Object CompanyName | Where-Object { $_.Matched -eq $true }
 $HuduCompanies = Get-HuduCompanies
+
+if (-not ([string]::IsNullOrWhiteSpace($ItglueJWT)) -and ($true -eq $importPasswordFolders -or $true -eq $importChecklists)) {
+    Write-Host "Since you have provided a JWT token and have checklist or password folder import enabled, we will preload these items from ITGlue before your credential becomes stale." -ForegroundColor Green
+    . $PSScriptRoot\Public\Preload-JWTOnlyItems.ps1
+}
 
 ############################### Locations ###############################
 #Check for Location Resume

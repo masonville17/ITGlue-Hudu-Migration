@@ -12,13 +12,13 @@ $ITGlueJWT = $ITGlueJWT ?? (Read-Host "Please enter your ITGlue JWT as retrieved
 $ITGlueJWT = Get-ITGlueJWTAuth -ITglueJWT $ITglueJWT
 
 Write-Host "Retrieving all certificates from ITGlue"
-$sslCerts = Get-ITGlueSslCertificates -JWTAuthToken $ITGlueJWT
-if ($sslCerts.Count -lt 1) {
+$ITglueSSLCerts = $ITglueSSLCerts ?? $(Get-ITGlueSslCertificates -JWTAuthToken $ITGlueJWT)
+if ($ITglueSSLCerts.Count -lt 1) {
     Write-Host "No SSL Certificates found in ITGlue, exiting."
     exit
 }
 
-Write-Host "Got $($sslCerts.Count) SSL Certificates from ITGlue"
+Write-Host "Got $($ITglueSSLCerts.Count) SSL Certificates from ITGlue"
 
 $cookieJar = $null
 $cookiejarfile = $(get-childitem -path ..\ -filter "cookiejar.json" -recurse -file | Select-Object -first 1)
@@ -39,7 +39,7 @@ foreach ($cookie in $cookiejar) {
     $session.Cookies.Add((New-Object System.Net.Cookie("$($cookie.Name)", "$($cookie.Value)", "$($cookie.Path)", "$($cookie.Domain)")))
 }
 
-foreach ($cert in $sslCerts) {
+foreach ($cert in $ITglueSSLCerts) {
     $orgid = $cert.attributes.'organization-id'
     $certid = $cert.id
     $requesturi = "$($settings.ITGURL)/$orgid/ssl_certificates/$certid.pdf"
@@ -125,7 +125,7 @@ function Test-IsHtmlFile {
 }
 . .\public\articles-anywhere.ps1
 
-foreach ($c in $sslcerts) {
+foreach ($c in $ITglueSSLCerts) {
     $orgname = $c.attributes.'organization-name'
     $pdfpath = get-childitem "$debug_folder\$($c.id).pdf"
     $docTitle = "Certificate - $($c.attributes.name)"
