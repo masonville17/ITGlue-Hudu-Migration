@@ -24,9 +24,9 @@ You'll want to make sure your Hudu instance is prepared for migration and that t
 
 - **How to run:** Clone or download the repository, open the **`release`** folder, and run **`ITGlue-Hudu-Migration.exe`** (double-click or from a terminal). You still need your ITGlue export ZIP, API keys, and a compatible Hudu instance—work through **What you'll need** and **Prerequisites** later in this document before you start.
 - **Settings:** Stored by default under `%APPDATA%\HuduMigration`, same as the PowerShell workflow.
-- **Use PowerShell instead** if you rely on a customized **`environ.example`**, want full session control over variables, or need post-run scripts such as **`Get-MissingRelations.ps1`**, **`Move-AssetsToNewLayout.ps1`**, **`Add-HuduAttachmentsViaAPI.ps1`**, or **`Replace-HuduBase64Images.ps1`** (these are not launched by the executable). See **Prerequisites - Migration Script Setup** below.
+- **Use PowerShell instead** if you rely on a customized **`environ.example`**, want full session control over variables, or need to manually invoke post-run scripts such as **`Get-MissingRelations.ps1`**, **`Move-AssetsToNewLayout.ps1`**, **`Add-HuduAttachmentsViaAPI.ps1`**, or **`Replace-HuduBase64Images.ps1`** -note, these are ran as part of the main script and are always ran, so you likely wont need to consider post-run scripts.
 
-## What the script can migrate currently:
+## What the script does migrate:
 - Companies
 - Contacts
 - Locations
@@ -37,19 +37,16 @@ You'll want to make sure your Hudu instance is prepared for migration and that t
 - Documents with folder structure
 - Passwords (with OTP codes)
 - Document Links
-- ! Password folders (optional, JWT): recreated as a **flattened** single level—not full hierarchical folder structure from ITGlue
+- Password folders (flattened to single-level)
 - ! Checklists / checklist templates (optional, JWT): imported as **Hudu procedures**; add users to Hudu first so assignees can be matched where possible
 
 Items marked with **!** require **JWT** authentication (ITGlue session token from your browser) and are intended for advanced users. Extracting a JWT requires web access and your browser’s developer tools. If you are unsure, skip these options.
 
-## What the script cannot migrate:
+## What the script does not migrate:
 - **Checklist/tag fidelity:** Relations from flexible assets or other fields to checklists or checklist templates are not migrated automatically (those references need manual follow-up).
-- SSL Certificates
-- **Password folder hierarchy via API key alone:** the standard ITGlue API does not expose password folders; the optional JWT path only supports a flattened folder layout (see above).
-- Personal Passwords
+- Personal Vault Passwords
 - Permissions (Folders, Companies, Passwords, KBs, etc.)
-- List of share links (external articles, passwords, etc.)
-  - To our knowledge, there isn't a way to know if/where/how many external share links you are using. Hudu supports external sharing as well, so you'll have to enable those on the Hudu side and get the new links shared out.
+- share links- you'll have to enable those on the Hudu side and get the new links shared out.
 
 
 ## What you'll need
@@ -195,7 +192,7 @@ Any other org types will migrate as usual, but this one org type will be central
 
 ## 3. Checklists and checklist templates (optional, JWT)
 
-When you opt in during the migration, checklists and templates are imported as **Hudu procedures** using a **JWT** from ITGlue (see the **!** items at the top of this document under **What the script can migrate currently**). Tag-style relations to checklists from other assets are still not migrated—plan for manual cleanup where needed.
+When you opt in during the migration, checklists and templates are imported as **Hudu procedures** using a **JWT** from ITGlue (see the **!** items at the top of this document under **What the script does migrate**). Tag-style relations to checklists from other assets are still not migrated—plan for manual cleanup where needed.
 
 ## 4. Custom-Mapping for Target Layouts (ADVANCED)
 
