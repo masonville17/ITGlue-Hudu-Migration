@@ -6,7 +6,6 @@ if ([string]::IsNullOrEmpty($ITglueJWT)) {
 if (-not (Get-Command -Name Get-EnsuredPath -ErrorAction SilentlyContinue)) { . .\Public\Init-OptionsAndLogs.ps1 }
 if (-not (Get-Command -Name Get-ITGlueJWTAuth -ErrorAction SilentlyContinue)) { . $PSScriptRoot\Public\JWT-Auth.ps1 }
 if (-not (Get-Command -Name Get-ITGlueCheckLists -ErrorAction SilentlyContinue)) { . $PSScriptRoot\Public\Get-Checklists.ps1 }
-if (-not (Get-Command -Name Get-ITGlueSslCertificates -ErrorAction SilentlyContinue)) { . .\Public\Get-ITGlueSslCertificates.ps1 }
 
 # $ITglueSSLCerts = Get-ITGlueSslCertificates -JWTAuthToken $ITGlueJWT
 
