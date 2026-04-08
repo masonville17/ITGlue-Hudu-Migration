@@ -6,8 +6,6 @@ if ([string]::IsNullOrEmpty($ITglueJWT)) {
 if (-not (Get-Command -Name Get-EnsuredPath -ErrorAction SilentlyContinue)) { . .\Public\Init-OptionsAndLogs.ps1 }
 if (-not (Get-Command -Name Get-ITGlueJWTAuth -ErrorAction SilentlyContinue)) { . $PSScriptRoot\Public\JWT-Auth.ps1 }
 if (-not (Get-Command -Name Get-ITGlueCheckLists -ErrorAction SilentlyContinue)) { . $PSScriptRoot\Public\Get-Checklists.ps1 }
-if (-not (Get-Command -Name Get-ITGPasswordFolders -ErrorAction SilentlyContinue)) { . $PSScriptRoot\Public\Get-PasswordFolders.ps1 }
-if (-not (Get-Command -Name Get-ITGlueSslCertificates -ErrorAction SilentlyContinue)) { . .\Public\Get-ITGlueSslCertificates.ps1 }
 
 # $ITglueSSLCerts = Get-ITGlueSslCertificates -JWTAuthToken $ITGlueJWT
 
@@ -63,19 +61,3 @@ if ($ITGLueChecklists.Count -gt 0) {
 } else {
     Write-Host "No checklists retrieved from ITGlue, skipping saving to file."
 }
-
-# Password Folders Data
-if (-not $MatchedCompanies -or $matchedCompanies.count -lt 1){
-    write-host "Can't preload password folders without matched companies, skipping preload of password folders."
-}
-$MatchedPasswordFolders = $MatchedPasswordFolders ?? @(); $preloadedPassFolders = $preloadedPassFolders ?? @{};
-foreach ($company in $MatchedCompanies) {
-    $ITGcompanyID = $company.ITGID ?? $company.ITGCompanyObject.id
-    if (-not $ITGcompanyID){continue}
-    $PasswordFoldersForCompany =  Get-ITGPasswordFolders -JWTAuthToken $ITGlueJWT -organization_id $ITGcompanyID -ComputePaths -Separator "<FDELIM>"
-    if ($PasswordFoldersForCompany -and $PasswordFoldersForCompany.Count -gt 0) {
-        $preloadedPassFolders["$($ITGcompanyID)"] = $PasswordFoldersForCompany
-    }
-}
-
-$preloadedPassFolders | ConvertTo-Json -Depth 99 | Out-File "$MigrationLogs\PreloadedPasswordFolders.json"
