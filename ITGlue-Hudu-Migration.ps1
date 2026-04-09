@@ -57,6 +57,7 @@ $FontAwesomeUpgrade = Get-FontAwesomeMap
 
 # Add migration scope helper
 . $PSScriptRoot\Public\Set-MigrationScope.ps1
+. $PSScriptRoot\Public\Start-ArticleStubs.ps1
 
 # Other JWT-Auth / Advanced Post-Run Imports
 . $PSScriptRoot\Public\Get-Checklists.ps1
@@ -290,7 +291,11 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Companies.json")) {
     # Lets confirm it is the correct one
     Write-Host ""
     Write-Host "Your Internal Company has been matched to: $(($MatchedCompanies | Sort-Object CompanyName | Where-Object {$_.InternalCompany -eq $true} | Select-Object CompanyName).companyname) in IT Glue"
-    Write-Host "The documents under this customer will be migrated to the Global KB in Hudu"
+    if ($PlaceInternalDocsInInternalCompany) {
+        Write-Host "The documents under this customer will stay in that company in Hudu"
+    } else {
+        Write-Host "The documents under this customer will be migrated to the Global KB in Hudu"
+    }
     Write-Host ""
     Write-TimedMessage -Message "Internal Company Correct? Press Return to continue or CTRL+C to quit if this is not correct" -Timeout 12 -DefaultResponse "Assuming found match on '$(($MatchedCompanies | Sort-Object CompanyName | Where-Object {$_.InternalCompany -eq $true} | Select-Object CompanyName).companyname)' is correct."
 
@@ -1719,7 +1724,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\ArticleBase.json")) {
 
     if ($ImportArticles -eq $true) {
 
-        if ($GlobalKBFolder -in ('y','yes','ye')) {
+        if (-not $PlaceInternalDocsInInternalCompany -and $GlobalKBFolder -in ('y','yes','ye')) {
             if (-not ($GlobalKBFolder = Get-HuduFolders -name $InternalCompany)) {
                 $GlobalKBFolder = (New-HuduFolder -Name $InternalCompany).folder
             }
@@ -1737,7 +1742,9 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\ArticleBase.json")) {
         $article = Start-ArticleStubs `
             -Document $doc -Files $files `
             -ITGDocumentsPath $ITGDocumentsPath -MatchedCompanies $MatchedCompanies `
-            -GlobalKBFolder $GlobalKBFolder -IncludeIgnoredFirstDirectory:$IncludeIgnoredFirstDirectory
+            -GlobalKBFolder $GlobalKBFolder `
+            -IncludeIgnoredFirstDirectory:$IncludeIgnoredFirstDirectory `
+            -PlaceInternalDocsInInternalCompany:$PlaceInternalDocsInInternalCompany
 
         if ($article) { $article }
     }
@@ -1964,7 +1971,13 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Articles.json")) {
             }
 			
 				
-            if ($_.company.InternalCompany -eq $false) {
+            $articleUsesGlobalKB = if ($null -ne $Article.PSObject.Properties['IsGlobalKBArticle']) {
+                [bool]$Article.IsGlobalKBArticle
+            } else {
+                [bool]($Article.company.InternalCompany -and -not $PlaceInternalDocsInInternalCompany)
+            }
+
+            if (-not $articleUsesGlobalKB) {
                 $ArticleSplat = @{
                     article_id = $Article.HuduID
                     name       = $Article.name

@@ -195,7 +195,13 @@ if (-not ($FirstTimeLoad -eq 1)) {
                 }
                 
                     
-                if ($_.company.InternalCompany -eq $false) {
+                $articleUsesGlobalKB = if ($null -ne $Article.PSObject.Properties['IsGlobalKBArticle']) {
+                    [bool]$Article.IsGlobalKBArticle
+                } else {
+                    [bool]($Article.company.InternalCompany -and -not $PlaceInternalDocsInInternalCompany)
+                }
+
+                if (-not $articleUsesGlobalKB) {
                     $ArticleSplat = @{
                         article_id = $Article.HuduID
                         name       = $Article.name

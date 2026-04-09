@@ -3,109 +3,112 @@ if (-not (Get-Command -Name Resolve-ArticleFolderPath -ErrorAction SilentlyConti
 }
 
 function Start-ArticleStubs {
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory)]$Document,
         [Parameter(Mandatory)]$Files,
         [Parameter(Mandatory)][string]$ITGDocumentsPath,
         [Parameter(Mandatory)]$MatchedCompanies,
         $GlobalKBFolder,
-        [switch]$IncludeIgnoredFirstDirectory
+        [switch]$IncludeIgnoredFirstDirectory,
+        [switch]$PlaceInternalDocsInInternalCompany
     )
-            Write-Host "Starting $($doc.name)" -ForegroundColor Green
-            $dir = $files | Where-Object { $_.PSIsContainer -eq $true -and $_.Name -match $doc.locator }
-			# ITGlue sometimes has export oddities like multiple folders for the same article or various names on the articles. This is assuming only one HTML file.
-			$DocumentFile = Get-ChildItem $dir -filter *.htm*
-			if (-not $DocumentFile)  {
-				Write-Host "HTML Files were not found under $($dir.fullname) this article will need to be migrated manually" -foregroundcolor red
-				$Article = [PSCustomObject]@{
-					"Name"       = $doc.name
-					"Filename"   = $Filename
-					"Path"       = $($dir.Fullname)
-					"FullPath"   = $null
-					"ITGID"      = $doc.id
-					"ITGLocator" = $doc.locator
-					"HuduID"     = $null
-					"HuduObject" = $null
-					"Folders"    = $folders
-					"Imported"   = "Skipped - Missing File"
-					"Company"    = $company
-				}
-				continue
-			}
-			elseif ($DocumentFile.count -gt 1) {Write-Warning "Found more than one HTML file for this article. This is a warning only"}
-            $folderResolution = Resolve-ArticleFolderPath -BasePath $ITGDocumentsPath -FullPath $DocumentFile.Directory.FullName
-            $RelativePath = $folderResolution.RelativePath
-            $folders = $folderResolution.FolderSegments
-            $foldersToInitialize = $folderResolution.FoldersToInitialize
-            $FilenameFromFolder = $folderResolution.FilenameFromFolder
-            # Disabling this line and using the found file name
-			# $Filename = $FilenameFromFolder
-			$Filename = $DocumentFile.name
-            $company = $MatchedCompanies | Where-Object { $_.CompanyName -eq $doc.organization }
+    $doc = $Document
 
+    Write-Host "Starting $($doc.name)" -ForegroundColor Green
 
-            if (($company | Measure-Object).count -eq 1) {
+    $escapedLocator = [WildcardPattern]::Escape([string]$doc.locator)
+    $dir = $Files | Where-Object {
+        $_.PSIsContainer -and $_.Name -like "*$escapedLocator*"
+    } | Select-Object -First 1
 
-                $art_folder_id = $null
-                if ($company.InternalCompany -eq $false) {
-                    if ($foldersToInitialize.Count -gt 0) {
-                        $art_folder_id = (Initialize-HuduFolder $foldersToInitialize -company_id $company.HuduID).id
-                    }
-                    $ArticleSplat = @{
-                        name       = $doc.name
-                        content    = "Migration in progress"
-                        company_id = $company.HuduID
-                        folder_id  = $art_folder_id
-                    }	
-                } else {
-                    if ($foldersToInitialize.Count -gt 0) {
-                        $targetFolders = @($foldersToInitialize)
-                        if ($GlobalKBFolder) {
-                            $targetFolders = @($GlobalKBFolder.name) + $targetFolders
-                        }
-                        $art_folder_id = (Initialize-HuduFolder $targetFolders).id
-                    }
-                    else {
-                        # Check for GlobalKB Folder being set
-                        if ($GlobalKBFolder) {
-                            $art_folder_id = $GlobalKBFolder.id
-                        }
-                    }
-                    $ArticleSplat = @{
-                        name      = $doc.name
-                        content   = "Migration in progress"
-                        folder_id = $art_folder_id
-                    }	
-                }
-		
+    if (-not $dir) {
+        Write-Host "Not Found $($doc.locator) this article will need to be migrated manually" -ForegroundColor Yellow
+        return $null
+    }
 
+    # ITGlue sometimes has export oddities like multiple folders for the same article or various names on the articles.
+    $documentFiles = @(Get-ChildItem -LiteralPath $dir.FullName -Filter *.htm* -ErrorAction SilentlyContinue)
+    if (-not $documentFiles) {
+        Write-Host "HTML Files were not found under $($dir.FullName) this article will need to be migrated manually" -ForegroundColor Red
+        return $null
+    }
 
+    if ($documentFiles.Count -gt 1) {
+        Write-Warning "Found more than one HTML file for this article. Using the first match only."
+    }
+    $DocumentFile = $documentFiles | Sort-Object FullName | Select-Object -First 1
 
-            } else {
-                Write-Host "Company $($doc.organization) Not Found Please migrate $($doc.name) manually"
-                continue
+    $folderResolution = Resolve-ArticleFolderPath `
+        -BasePath $ITGDocumentsPath `
+        -FullPath $DocumentFile.Directory.FullName `
+        -IncludeIgnoredFirstDirectory:$IncludeIgnoredFirstDirectory
+
+    $folders = $folderResolution.FolderSegments
+    $foldersToInitialize = $folderResolution.FoldersToInitialize
+    $Filename = $DocumentFile.Name
+    $company = $MatchedCompanies | Where-Object { $_.CompanyName -eq $doc.organization }
+
+    if (($company | Measure-Object).Count -ne 1) {
+        Write-Host "Company $($doc.organization) Not Found Please migrate $($doc.name) manually"
+        return $null
+    }
+
+    $articleUsesGlobalKB = [bool]($company.InternalCompany -and -not $PlaceInternalDocsInInternalCompany)
+    $art_folder_id = $null
+
+    if (-not $articleUsesGlobalKB) {
+        if ($foldersToInitialize.Count -gt 0) {
+            $art_folder_id = (Initialize-HuduFolder $foldersToInitialize -company_id $company.HuduID).id
+        }
+        $ArticleSplat = @{
+            name       = $doc.name
+            content    = "Migration in progress"
+            company_id = $company.HuduID
+            folder_id  = $art_folder_id
+        }
+    } else {
+        if ($foldersToInitialize.Count -gt 0) {
+            $targetFolders = @($foldersToInitialize)
+            if ($GlobalKBFolder) {
+                $targetFolders = @($GlobalKBFolder.name) + $targetFolders
             }
+            $art_folder_id = (Initialize-HuduFolder $targetFolders).id
+        } elseif ($GlobalKBFolder) {
+            $art_folder_id = $GlobalKBFolder.id
+        }
 
+        $ArticleSplat = @{
+            name      = $doc.name
+            content   = "Migration in progress"
+            folder_id = $art_folder_id
+        }
+    }
 
-            $NewArticle = (New-HuduArticle @ArticleSplat).article
-            if ($company.InternalCompany -eq $false) {
-                Write-Host "Article created in $($company.CompanyName)"
-            } else {
-                Write-Host "Article created in GlobaL KB"
-            }
+    $NewArticle = (New-HuduArticle @ArticleSplat).article
+    if (-not $NewArticle) {
+        Write-Warning "Failed to create article stub for $($doc.name)"
+        return $null
+    }
 
-            $Article = [PSCustomObject]@{
-                "Name"       = $doc.name
-                "Filename"   = $Filename
-                "Path"       = $DocumentFile.Directory.FullName
-                "FullPath"   = $DocumentFile.fullname
-                "ITGID"      = $doc.id
-                "ITGLocator" = $doc.locator
-                "HuduID"     = $NewArticle.ID
-                "HuduObject" = $NewArticle
-                "Folders"    = $folders
-                "Imported"   = "Stub-Created"
-                "Company"    = $company
-            }
-return $Article
+    if ($articleUsesGlobalKB) {
+        Write-Host "Article created in Global KB"
+    } else {
+        Write-Host "Article created in $($company.CompanyName)"
+    }
+
+    return [PSCustomObject]@{
+        "Name"            = $doc.name
+        "Filename"        = $Filename
+        "Path"            = $DocumentFile.Directory.FullName
+        "FullPath"        = $DocumentFile.FullName
+        "ITGID"           = $doc.id
+        "ITGLocator"      = $doc.locator
+        "HuduID"          = $NewArticle.ID
+        "HuduObject"      = $NewArticle
+        "Folders"         = $folders
+        "Imported"        = "Stub-Created"
+        "Company"         = $company
+        "IsGlobalKBArticle" = $articleUsesGlobalKB
+    }
 }

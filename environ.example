@@ -31,7 +31,10 @@ $settings = @{
     ITGCustomDomains        = ""
     InternalCompany         = "changeme inc."
 
-    # Central folder KB articles
+    # If $true, internal-company documents stay under that company instead of Hudu Global KB
+    PlaceInternalDocsInInternalCompany = $false
+
+    # Central folder KB articles when using Global KB for internal-company documents
     GlobalKBFolder          = "y"
 
     # Configs asset layout in Hudu Naming Prefix
