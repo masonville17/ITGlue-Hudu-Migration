@@ -1,6 +1,16 @@
-function Start-ArticleStubs {
-param($doc)
+if (-not (Get-Command -Name Resolve-ArticleFolderPath -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\Resolve-ArticleFolderPath.ps1"
+}
 
+function Start-ArticleStubs {
+    param(
+        [Parameter(Mandatory)]$Document,
+        [Parameter(Mandatory)]$Files,
+        [Parameter(Mandatory)][string]$ITGDocumentsPath,
+        [Parameter(Mandatory)]$MatchedCompanies,
+        $GlobalKBFolder,
+        [switch]$IncludeIgnoredFirstDirectory
+    )
             Write-Host "Starting $($doc.name)" -ForegroundColor Green
             $dir = $files | Where-Object { $_.PSIsContainer -eq $true -and $_.Name -match $doc.locator }
 			# ITGlue sometimes has export oddities like multiple folders for the same article or various names on the articles. This is assuming only one HTML file.
@@ -23,11 +33,11 @@ param($doc)
 				continue
 			}
 			elseif ($DocumentFile.count -gt 1) {Write-Warning "Found more than one HTML file for this article. This is a warning only"}
-			# Disabling this line and replacing it with the found file
-            # $RelativePath = ($dir.FullName).Substring($ITGDocumentsPath.Length)
-			$RelativePath = ($DocumentFile.Directory.FullName).Substring($ITGDocumentsPath.Length)
-            $folders = ($RelativePath -split '\\').trim('_').trim()
-            $FilenameFromFolder = ($folders[$folders.count - 1] -split ' ', 2)[1]
+            $folderResolution = Resolve-ArticleFolderPath -BasePath $ITGDocumentsPath -FullPath $DocumentFile.Directory.FullName
+            $RelativePath = $folderResolution.RelativePath
+            $folders = $folderResolution.FolderSegments
+            $foldersToInitialize = $folderResolution.FoldersToInitialize
+            $FilenameFromFolder = $folderResolution.FilenameFromFolder
             # Disabling this line and using the found file name
 			# $Filename = $FilenameFromFolder
 			$Filename = $DocumentFile.name
@@ -38,10 +48,8 @@ param($doc)
 
                 $art_folder_id = $null
                 if ($company.InternalCompany -eq $false) {
-                    if (($folders | Measure-Object).count -gt 2) {
-                        # Make / Check Folders
-
-                        $art_folder_id = (Initialize-HuduFolder $folders[1..$($folders.count - 2)] -company_id $company.HuduID).id
+                    if ($foldersToInitialize.Count -gt 0) {
+                        $art_folder_id = (Initialize-HuduFolder $foldersToInitialize -company_id $company.HuduID).id
                     }
                     $ArticleSplat = @{
                         name       = $doc.name
@@ -50,13 +58,12 @@ param($doc)
                         folder_id  = $art_folder_id
                     }	
                 } else {
-                    if (($folders | Measure-Object).count -gt 2) {
-                        # Make / Check Folders
-                        $folders = $folders[1..$($folders.count - 2)]
+                    if ($foldersToInitialize.Count -gt 0) {
+                        $targetFolders = @($foldersToInitialize)
                         if ($GlobalKBFolder) {
-                            $folders = @($GlobalKBFolder.name) + $folders
+                            $targetFolders = @($GlobalKBFolder.name) + $targetFolders
                         }
-                        $art_folder_id = (Initialize-HuduFolder $folders).id
+                        $art_folder_id = (Initialize-HuduFolder $targetFolders).id
                     }
                     else {
                         # Check for GlobalKB Folder being set

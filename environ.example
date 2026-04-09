@@ -108,32 +108,9 @@ $allowSettingFlagsAndTypes  = $false
 # $Prescoped = @(
 # 905
 # 859
-# 1009
-# 1328
-# 1288
-# 2254
-# 2140
-# 99
-# 651
-# 1707
-# 1869
-# 1707
-# 2176
-# 1381
-# 1374
-# 1945
-# 739
-# 465
-# 936
-# 474
-# 1387
-# 1152
-# 20
-# 1231
-# 932
-# )
+#)
 
 $LocImportAssetLayoutName = "Locations" # name for locations layout
 $ConImportAssetLayoutName = "People" # name for contacts/people layout
-
+$IncludeIgnoredFirstDirectory = $true # this is the usual default behavior
 . .\ITGlue-Hudu-Migration.ps1
