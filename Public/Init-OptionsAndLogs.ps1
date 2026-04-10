@@ -182,8 +182,10 @@ function Set-ExternalModulesInitialized {
             $DisallowedVersions = @([version]"2.37.0"),
             [string]$HuduApiRepositoryUrl = $($env:HUDUAPI_REPOSITORY_URL ?? "https://github.com/Hudu-Technologies-Inc/HuduAPI.git"),
             [string]$HuduApiBranch = $($env:HUDUAPI_REPOSITORY_BRANCH ?? "master"),
-            [bool]$AllowHuduGalleryFallback = $false
+            [string]$HuduApiZipUrl = $env:HUDUAPI_ZIP_URL,
+            [string]$BundledHuduApiZipPath = $(Join-Path $PSScriptRoot "HAPI.zip")
         )
+    $AllowHuduGalleryFallback = $false
 
     function Test-HuduApiModuleLayout {
         param([Parameter(Mandatory)][string]$ModulePath)
@@ -218,54 +220,42 @@ function Set-ExternalModulesInitialized {
         return (Join-Path $tempRoot "HuduAPI")
     }
 
-    function Save-GitHubContentsDirectory {
-        param(
-            [Parameter(Mandatory)][string]$Owner,
-            [Parameter(Mandatory)][string]$Repo,
-            [Parameter(Mandatory)][string]$Branch,
-            [Parameter(Mandatory)][string]$Path,
-            [Parameter(Mandatory)][string]$DestinationPath
-        )
+    function Unblock-HuduApiPath {
+        param([Parameter(Mandatory)][string]$Path)
 
-        $encodedPath = (($Path -split '/') | ForEach-Object { [System.Uri]::EscapeDataString($_) }) -join '/'
-        $encodedBranch = [System.Uri]::EscapeDataString($Branch)
-        $uri = "https://api.github.com/repos/$Owner/$Repo/contents/$encodedPath`?ref=$encodedBranch"
-        $headers = @{ "User-Agent" = "ITGlue-Hudu-Migration" }
-        $items = @(Invoke-RestMethod -Uri $uri -Headers $headers -ErrorAction Stop)
-
-        New-Item -ItemType Directory -Path $DestinationPath -Force -ErrorAction Stop | Out-Null
-        foreach ($item in $items) {
-            $destination = Join-Path $DestinationPath $item.name
-            if ($item.type -eq "dir") {
-                $childPath = [string]$item.PSObject.Properties["path"].Value
-                if ([string]::IsNullOrWhiteSpace($childPath)) {
-                    $childPath = "$Path/$($item.name)"
-                }
-                Save-GitHubContentsDirectory -Owner $Owner -Repo $Repo -Branch $Branch -Path $childPath -DestinationPath $destination
-            } elseif ($item.type -eq "file") {
-                $downloadUrl = [string]$item.PSObject.Properties["download_url"].Value
-                if ([string]::IsNullOrWhiteSpace($downloadUrl)) {
-                    throw "GitHub API did not return a download URL for $($item.name)."
-                }
-                Invoke-WebRequest -Uri $downloadUrl -Headers $headers -OutFile $destination -ErrorAction Stop | Out-Null
+        try {
+            if (Test-Path -LiteralPath $Path) {
+                Get-ChildItem -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue |
+                    Unblock-File -ErrorAction SilentlyContinue
+                Unblock-File -LiteralPath $Path -ErrorAction SilentlyContinue
             }
-        }
+        } catch {}
     }
 
-    function Install-HuduApiForkNinjaStyle {
+    function Expand-HuduApiZipToStaging {
         param(
-            [Parameter(Mandatory)][string]$RepositoryUrl,
-            [Parameter(Mandatory)][string]$Branch,
+            [Parameter(Mandatory)][string]$ZipPath,
             [Parameter(Mandatory)][string]$StagingRepoRoot
         )
 
-        $repoParts = Get-GitHubRepositoryParts -RepositoryUrl $RepositoryUrl
-        if (-not $repoParts) {
-            throw "Ninja-Style install only supports github.com repository URLs."
+        $stagingParent = Split-Path -Path $StagingRepoRoot -Parent
+        $extractRoot = Join-Path $stagingParent "zip-extract"
+
+        Unblock-HuduApiPath -Path $ZipPath
+        Expand-Archive -Path $ZipPath -DestinationPath $extractRoot -Force -ErrorAction Stop
+        Unblock-HuduApiPath -Path $extractRoot
+
+        $candidateRoots = @((Get-Item -LiteralPath $extractRoot -ErrorAction Stop))
+        $candidateRoots += @(Get-ChildItem -LiteralPath $extractRoot -Directory -Recurse -ErrorAction Stop)
+        $extracted = $candidateRoots |
+            Where-Object { Test-HuduApiModuleLayout -ModulePath (Join-Path $_.FullName "HuduAPI\HuduAPI.psm1") } |
+            Select-Object -First 1
+
+        if (-not $extracted) {
+            throw "Archive did not contain a complete HuduAPI module layout."
         }
 
-        $moduleDirectory = Join-Path $StagingRepoRoot "HuduAPI"
-        Save-GitHubContentsDirectory -Owner $repoParts.Owner -Repo $repoParts.Repo -Branch $Branch -Path "HuduAPI" -DestinationPath $moduleDirectory
+        Move-Item -LiteralPath $extracted.FullName -Destination $StagingRepoRoot -Force -ErrorAction Stop
     }
 
     function Install-HuduApiForkSamuraiStyle {
@@ -285,7 +275,7 @@ function Set-ExternalModulesInitialized {
         try {
             $env:GIT_TERMINAL_PROMPT = "0"
             $env:GIT_SSH_COMMAND = "ssh -o BatchMode=yes"
-            & $git.Source clone --depth 1 --branch $Branch $RepositoryUrl $StagingRepoRoot
+            & $git.Source clone --depth 1 --branch $Branch $RepositoryUrl $StagingRepoRoot 2>$null
             if ($LASTEXITCODE -ne 0) {
                 throw "git clone exited with code $LASTEXITCODE."
             }
@@ -299,36 +289,46 @@ function Set-ExternalModulesInitialized {
         param(
             [Parameter(Mandatory)][string]$RepositoryUrl,
             [Parameter(Mandatory)][string]$Branch,
-            [Parameter(Mandatory)][string]$StagingRepoRoot
+            [Parameter(Mandatory)][string]$StagingRepoRoot,
+            [string]$ZipUrl
         )
 
-        $repoParts = Get-GitHubRepositoryParts -RepositoryUrl $RepositoryUrl
-        if (-not $repoParts) {
-            throw "Ashigaru-Warrior-Style install only supports github.com repository URLs."
+        if ([string]::IsNullOrWhiteSpace($ZipUrl)) {
+            $repoParts = Get-GitHubRepositoryParts -RepositoryUrl $RepositoryUrl
+            if (-not $repoParts) {
+                throw "Ashigaru-Warrior-Style install only supports github.com repository URLs unless HuduApiZipUrl is set."
+            }
+            $ZipUrl = "https://codeload.github.com/$($repoParts.Owner)/$($repoParts.Repo)/zip/refs/heads/$Branch"
         }
 
         $stagingParent = Split-Path -Path $StagingRepoRoot -Parent
         $zip = Join-Path $stagingParent "HuduAPI.zip"
-        $extractRoot = Join-Path $stagingParent "zip-extract"
-        $zipUri = "https://codeload.github.com/$($repoParts.Owner)/$($repoParts.Repo)/zip/refs/heads/$Branch"
         $headers = @{ "User-Agent" = "ITGlue-Hudu-Migration" }
 
-        Invoke-WebRequest -Uri $zipUri -Headers $headers -OutFile $zip -ErrorAction Stop | Out-Null
-        Expand-Archive -Path $zip -DestinationPath $extractRoot -Force -ErrorAction Stop
+        Invoke-WebRequest -Uri $ZipUrl -Headers $headers -OutFile $zip -ErrorAction Stop | Out-Null
+        Expand-HuduApiZipToStaging -ZipPath $zip -StagingRepoRoot $StagingRepoRoot
+    }
 
-        $extracted = Get-ChildItem -LiteralPath $extractRoot -Directory -ErrorAction Stop | Select-Object -First 1
-        if (-not $extracted) {
-            throw "Downloaded archive did not contain a repository directory."
+    function Install-HuduApiForkBundledZipStyle {
+        param(
+            [Parameter(Mandatory)][string]$ZipPath,
+            [Parameter(Mandatory)][string]$StagingRepoRoot
+        )
+
+        if (-not (Test-Path -LiteralPath $ZipPath -PathType Leaf)) {
+            throw "Bundled HuduAPI zip was not found at $ZipPath."
         }
 
-        Move-Item -LiteralPath $extracted.FullName -Destination $StagingRepoRoot -Force -ErrorAction Stop
+        Expand-HuduApiZipToStaging -ZipPath $ZipPath -StagingRepoRoot $StagingRepoRoot
     }
 
     function Install-HuduApiFork {
         param(
             [Parameter(Mandatory)][string]$ModulePath,
             [Parameter(Mandatory)][string]$RepositoryUrl,
-            [Parameter(Mandatory)][string]$Branch
+            [Parameter(Mandatory)][string]$Branch,
+            [string]$ZipUrl,
+            [string]$BundledZipPath
         )
 
         $targetRepoRoot = Split-Path -Path (Split-Path -Path $ModulePath -Parent) -Parent
@@ -338,24 +338,24 @@ function Set-ExternalModulesInitialized {
 
         $installMethods = @(
             @{
-                Name = "Ninja-Style"
-                Script = {
-                    param($repoUrl, $branchName, $stagingRoot)
-                    Install-HuduApiForkNinjaStyle -RepositoryUrl $repoUrl -Branch $branchName -StagingRepoRoot $stagingRoot
-                }
-            },
-            @{
                 Name = "Ashigaru-Warrior-Style"
                 Script = {
-                    param($repoUrl, $branchName, $stagingRoot)
-                    Install-HuduApiForkAshigaruStyle -RepositoryUrl $repoUrl -Branch $branchName -StagingRepoRoot $stagingRoot
+                    param($repoUrl, $branchName, $stagingRoot, $directZipUrl)
+                    Install-HuduApiForkAshigaruStyle -RepositoryUrl $repoUrl -Branch $branchName -StagingRepoRoot $stagingRoot -ZipUrl $directZipUrl
                 }
             },
             @{
                 Name = "Samurai-Style"
                 Script = {
-                    param($repoUrl, $branchName, $stagingRoot)
+                    param($repoUrl, $branchName, $stagingRoot, $directZipUrl)
                     Install-HuduApiForkSamuraiStyle -RepositoryUrl $repoUrl -Branch $branchName -StagingRepoRoot $stagingRoot
+                }
+            },
+            @{
+                Name = "Bundled-Zip"
+                Script = {
+                    param($repoUrl, $branchName, $stagingRoot, $directZipUrl, $localZipPath)
+                    Install-HuduApiForkBundledZipStyle -ZipPath $localZipPath -StagingRepoRoot $stagingRoot
                 }
             }
         )
@@ -365,8 +365,9 @@ function Set-ExternalModulesInitialized {
             $stagingContainer = Split-Path -Path $stagingRepoRoot -Parent
 
             try {
-                Write-Host "Trying HuduAPI fork install via $($method.Name) from $RepositoryUrl ($Branch)." -ForegroundColor Cyan
-                & $method.Script $RepositoryUrl $Branch $stagingRepoRoot
+                $methodSource = if ($method.Name -eq "Bundled-Zip") { $BundledZipPath } else { "$RepositoryUrl ($Branch)" }
+                Write-Host "Trying HuduAPI fork install via $($method.Name) from $methodSource." -ForegroundColor Cyan
+                & $method.Script $RepositoryUrl $Branch $stagingRepoRoot $ZipUrl $BundledZipPath
 
                 $stagedModulePath = Join-Path $stagingRepoRoot "HuduAPI\HuduAPI.psm1"
                 if (-not (Test-HuduApiModuleLayout -ModulePath $stagedModulePath)) {
@@ -399,6 +400,7 @@ function Set-ExternalModulesInitialized {
         if (Test-Path -LiteralPath $stagingGitPath) {
             Remove-Item -LiteralPath $stagingGitPath -Recurse -Force -ErrorAction SilentlyContinue
         }
+        Unblock-HuduApiPath -Path $stagingRepoRoot
 
         $stagingContainer = Split-Path -Path $stagingRepoRoot -Parent
         New-Item -ItemType Directory -Path $targetRepoRoot -Force -ErrorAction Stop | Out-Null
@@ -417,21 +419,34 @@ function Set-ExternalModulesInitialized {
         Write-Warning "Could not set process execution policy to Bypass: $($_.Exception.Message)"
     }
 
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    } catch {
+        Write-Warning "Could not force TLS 1.2 for this PowerShell session: $($_.Exception.Message)"
+    }
+    $ProgressPreference = 'SilentlyContinue'
+
+    if ([string]::IsNullOrWhiteSpace($BundledHuduApiZipPath) -and -not [string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+        $repoRoot = Split-Path -Path $PSScriptRoot -Parent
+        $BundledHuduApiZipPath = Join-Path $repoRoot "ExternalModules\HuduAPI.zip"
+    }
+
     if ($true -eq $use_hudu_fork) {
         if (-not (Test-HuduApiModuleLayout -ModulePath $HAPImodulePath)) {
             Write-Host "Using latest $HuduApiBranch branch of HuduAPI fork." -ForegroundColor Cyan
-            Install-HuduApiFork -ModulePath $HAPImodulePath -RepositoryUrl $HuduApiRepositoryUrl -Branch $HuduApiBranch
+            Install-HuduApiFork -ModulePath $HAPImodulePath -RepositoryUrl $HuduApiRepositoryUrl -Branch $HuduApiBranch -ZipUrl $HuduApiZipUrl -BundledZipPath $BundledHuduApiZipPath
         }
     } else {
-        Write-Host "Assuming PSGallery Module if not already locally cloned at $HAPImodulePath"
+        Write-Host "HuduAPI fork loading is disabled. PSGallery will only be used if AllowHuduGalleryFallback is true."
     }
 
+    Remove-Module HuduAPI -Force -ErrorAction SilentlyContinue
     if (Test-HuduApiModuleLayout -ModulePath $HAPImodulePath) {
         $huduApiManifestPath = [System.IO.Path]::ChangeExtension($HAPImodulePath, ".psd1")
         $huduApiImportPath = if (Test-Path -LiteralPath $huduApiManifestPath -PathType Leaf) { $huduApiManifestPath } else { $HAPImodulePath }
         Import-Module $huduApiImportPath -Force -ErrorAction Stop
         Write-Host "Module imported from $huduApiImportPath"
-    } elseif ($true -eq $use_hudu_fork -and -not $AllowHuduGalleryFallback) {
+    } elseif (-not $AllowHuduGalleryFallback) {
         write-host "Sorry, it seems we weren't able to load the Hudu-Fork of HuduAPI module, which is required for the latest features that this fork provides."
         write-host "You can manually download this project https://github.com/Hudu-Technologies-Inc/HuduAPI and extract it to Documents/GitHub folder."
         throw "HuduAPI fork was requested, but no complete fork module was available at $HAPImodulePath. PSGallery fallback is disabled."
@@ -439,7 +454,7 @@ function Set-ExternalModulesInitialized {
         Import-Module HuduAPI -ErrorAction Stop
         Write-Host "Module 'HuduAPI' imported from global/module path"
     } else {
-        Install-Module HuduAPI -MinimumVersion 2.4.5 -Scope CurrentUser -Force -ErrorAction Stop
+        Install-Module HuduAPI -MinimumVersion 3.1.1 -Scope CurrentUser -Force -ErrorAction Stop
         Import-Module HuduAPI -ErrorAction Stop
         Write-Host "Installed and imported HuduAPI from PSGallery"
     }
