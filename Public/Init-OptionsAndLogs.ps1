@@ -174,6 +174,31 @@ $propertyDump
     }
 }
 
+
+function Set-HuduInstance {
+    param(
+        [string]$HuduBaseURL,
+        [string]$HuduAPIKey
+    )
+
+    while ([string]::IsNullOrWhiteSpace($HuduBaseURL)) {
+        $HuduBaseURL = (Read-Host -Prompt 'Set the base domain of your Hudu instance (e.g. https://myinstance.huducloud.com)').Trim()
+        $HuduBaseURL = $HuduBaseURL -replace '[\\/]+$', ''
+        $HuduBaseURL = $HuduBaseURL -replace '^(?!https://)', 'https://'
+    }
+
+    while ([string]::IsNullOrWhiteSpace($HuduAPIKey) -or $HuduAPIKey.Length -ne 24) {
+        $HuduAPIKey = (Read-Host -Prompt "Get a Hudu API key from $HuduBaseURL/admin/api_keys").Trim()
+
+        if ($HuduAPIKey.Length -ne 24) {
+            Write-Host "This doesn't seem to be a valid Hudu API key. It is $($HuduAPIKey.Length) characters long, but should be 24." -ForegroundColor Red
+        }
+    }
+
+    New-HuduAPIKey $HuduAPIKey
+    New-HuduBaseURL $HuduBaseURL
+}
+
 function Set-ExternalModulesInitialized {
     param (
             [string]$HAPImodulePath = "C:\Users\$env:USERNAME\Documents\GitHub\HuduAPI\HuduAPI\HuduAPI.psm1",
@@ -183,7 +208,11 @@ function Set-ExternalModulesInitialized {
             [string]$HuduApiRepositoryUrl = $($env:HUDUAPI_REPOSITORY_URL ?? "https://github.com/Hudu-Technologies-Inc/HuduAPI.git"),
             [string]$HuduApiBranch = $($env:HUDUAPI_REPOSITORY_BRANCH ?? "master"),
             [string]$HuduApiZipUrl = $env:HUDUAPI_ZIP_URL,
-            [string]$BundledHuduApiZipPath = $(Join-Path $PSScriptRoot "HAPI.zip")
+            [string]$BundledHuduApiZipPath = (
+                Join-Path (
+                    $(if ($PSScriptRoot) { $PSScriptRoot } else { (Resolve-Path .).Path })
+                ) 'HAPI.zip'
+            )
         )
     $AllowHuduGalleryFallback = $false
 
@@ -460,18 +489,10 @@ function Set-ExternalModulesInitialized {
     }
 
     #Login to Hudu
-    New-HuduAPIKey $HuduAPIKey
-    New-HuduBaseUrl $HuduBaseDomain
+    Set-HuduInstance 
 
     # Check we have the correct version
     $CurrentVersion = [version]($(Get-HuduAppInfo).version)
-
-    if ($CurrentVersion -lt [version]$RequiredHuduVersion -or $DisallowedVersions -contains $CurrentVersion) {
-        Write-Host "This script requires at least version $RequiredHuduVersion and cannot run with version $CurrentVersion. Please update your version of Hudu."
-        exit 1
-    } else {
-        write-host "Current version $CurrentVersion is compatible."
-    }
 
     try {
         remove-module ITGlueAPI -ErrorAction SilentlyContinue
