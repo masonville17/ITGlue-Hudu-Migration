@@ -89,8 +89,8 @@ $OptionalImageAnchorReplace = 1
 $NonInteractive             = 2
 
 # these require JWT authentication to perform [default is 1/false; 2 for true]
+$importPasswordFolders      = 2
 $importChecklists           = 1
-$importPasswordFolders      = 1
 $GlobalPasswordFolderMode = $true # or $false
 $companyPasswordFolderAttributionMove = $null # $false or $true- If using global password folders mode, this effectively allows for password folders that only have passwords for one company localized to that compoany or de-globalized
 
@@ -115,5 +115,5 @@ $allowSettingFlagsAndTypes  = $false
 
 $LocImportAssetLayoutName = "Locations" # name for locations layout
 $ConImportAssetLayoutName = "People" # name for contacts/people layout
-$IncludeIgnoredFirstArticleDirectory = $true # this is the usual default behavior
+$IncludeIgnoredFirstArticleDirectory = $false # this is the usual default behavior
 . .\ITGlue-Hudu-Migration.ps1
