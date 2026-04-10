@@ -42,7 +42,7 @@ function Start-ArticleStubs {
     $folderResolution = Resolve-ArticleFolderPath `
         -BasePath $ITGDocumentsPath `
         -FullPath $DocumentFile.Directory.FullName `
-        -IncludeIgnoredFirstDirectory:$IncludeIgnoredFirstArticleDirectory
+        -IncludeIgnoredFirstArticleDirectory:$IncludeIgnoredFirstArticleDirectory
 
     $folders = $folderResolution.FolderSegments
     $foldersToInitialize = $folderResolution.FoldersToInitialize
