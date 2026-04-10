@@ -65,7 +65,7 @@ foreach ($cert in $ITglueSSLCerts) {
         "sec-fetch-site"="same-origin"
         "sec-fetch-user"="?1"
         "upgrade-insecure-requests"="1"
-        } -OutFile "$debug_folder\$($certid).pdf"
+        } -OutFile "$debugFolder\$($certid).pdf"
 }
 function Normalize-WebURL {
     param(
@@ -127,7 +127,7 @@ function Test-IsHtmlFile {
 
 foreach ($c in $ITglueSSLCerts) {
     $orgname = $c.attributes.'organization-name'
-    $pdfpath = get-childitem "$debug_folder\$($c.id).pdf"
+    $pdfpath = get-childitem "$debugFolder\$($c.id).pdf"
     $docTitle = "Certificate - $($c.attributes.name)"
     $article =$null; $company = $null; $articleExists = $null; $website = $null;
 
@@ -138,7 +138,7 @@ foreach ($c in $ITglueSSLCerts) {
         write-host "Article with title $docTitle already exists in Hudu, skipping import for certificate $($c.id)"
     } else {
         try {
-            if ($true -eq $(Test-IsHtmlFile $(resolve-path "$debug_folder\$($c.id).pdf"))){
+            if ($true -eq $(Test-IsHtmlFile $(resolve-path "$debugFolder\$($c.id).pdf"))){
                 write-host "Creating Article $docTitle for $orgname from HTML Blob for certificate $($c.id)"
                 $article = new-huduarticle -Name "$docTitle" -CompanyId $company.id -content "$(get-content $pdfpath.FullName -Raw)"
                 $article =$article.article ?? $article
