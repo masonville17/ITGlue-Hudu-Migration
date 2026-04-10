@@ -106,15 +106,29 @@ function CollectAndSaveSettings {
     Write-Host "Settings- Global KnowledgeBase:" -ForegroundColor Yellow
     $settings.InternalCompany = $settings.InternalCompany ??
         $(Read-Host 'Enter the exact name of the ITGlue Organization that represents your Internal Company ').ToString().Trim()
-    $settings.GlobalKBFolder = $settings.GlobalKBFolder ??
-        ""
-    while ($settings.GlobalKBFolder.Length -ne 1 -or $settings.GlobalKBFolder.ToLower() -notin @('y','n')) {
-        $settings.GlobalKBFolder = $(Read-Host -Prompt 'Do you want all documents in Global KB to be placed into a subfolder? (y/n)').ToString().Trim().ToLower()
-        if ($settings.GlobalKBFolder -notin @("y","n")){
-            Write-Host "Please re-enter, y or n"
+    if ($null -eq $settings.PlaceInternalDocsInInternalCompany) {
+        while ($null -eq $settings.PlaceInternalDocsInInternalCompany) {
+            $internalDocsChoice = $(Read-Host -Prompt 'Do you want documents from your Internal Company to stay under that company instead of going to Global KB? [Default behavior is N/$false] (y/n)').ToString().Trim().ToLower()
+            switch ($internalDocsChoice) {
+                { $_ -in @('y','yes') } { $settings.PlaceInternalDocsInInternalCompany = $true; break }
+                { $_ -in @('n','no') } { $settings.PlaceInternalDocsInInternalCompany = $false; break }
+                default { Write-Host "Please re-enter, y or n" }
+            }
         }
     }
-    Write-Host "The documents from the company $($settings.InternalCompany) will be migrated to Hudu's Global KB section " -ForegroundColor Cyan
+    if ($true -ne $settings.PlaceInternalDocsInInternalCompany) {
+        $settings.GlobalKBFolder = $settings.GlobalKBFolder ??
+            ""
+        while ($settings.GlobalKBFolder.Length -ne 1 -or $settings.GlobalKBFolder.ToLower() -notin @('y','n')) {
+            $settings.GlobalKBFolder = $(Read-Host -Prompt 'Do you want all documents in Global KB to be placed into a subfolder? (y/n)').ToString().Trim().ToLower()
+            if ($settings.GlobalKBFolder -notin @("y","n")){
+                Write-Host "Please re-enter, y or n"
+            }
+        }
+        Write-Host "The documents from the company $($settings.InternalCompany) will be migrated to Hudu's Global KB section " -ForegroundColor Cyan
+    } else {
+        Write-Host "The documents from the company $($settings.InternalCompany) will stay under that company in Hudu" -ForegroundColor Cyan
+    }
     $settings.ConPromptPrefix = $settings.ConPromptPrefix ?? 
         $(Read-Host "Would you like a Prefix in front of ️Configuration names️ created in Hudu? This can make it easy to review and you can rename them later. Enter the prefix here, otherwise leave it blank. (e.g. ITGlue-)")
     $settings.FAPromptPrefix = $settings.FAPromptPrefix ??
@@ -288,8 +302,9 @@ catch {
 #Enter your primary IT Glue internal URL
 $ITGURL = $environmentSettings.ITGURL
 
-# IT Glue Internal Company Name (The documents from this company will be migrated to the Global KB)
+# IT Glue Internal Company Name
 $InternalCompany = $environmentSettings.InternalCompany
+$PlaceInternalDocsInInternalCompany = [bool]$environmentSettings.PlaceInternalDocsInInternalCompany
 
 $ITGLueExportPath = $environmentSettings.ITGLueExportPath
 
@@ -299,7 +314,7 @@ while ($resumeQuestion -notin ('yes','no')) {
 	$resumeQuestion = Read-Host "Would you like to resume a previous migration? (yes/no)"
 }
 $ResumePrevious = if ($resumeQuestion -eq 'yes') {$true} else {$false}
-$GlobalKBFolder = $environmentSettings.GlobalKBFolder
+$GlobalKBFolder = if ($PlaceInternalDocsInInternalCompany) { $null } else { $environmentSettings.GlobalKBFolder }
 
 # These settings should only run when doing a full settings initialization.
 if ($InitType -eq 'Full') {
@@ -429,7 +444,7 @@ if ($InitType -eq 'Full') {
     }
 
     ############################ PasswordFolders ############################
-    while ($importPasswordFolders -notin (1,2)) {$importPasswordFolders = Read-Host "[ADVANCED, default 1/$false] Would you like to import Password Folders? (requires web access to ITGlue).`n 1) Yes`n 2) No, Skip Password Folders`n(1/2)"}
+    while ($importPasswordFolders -notin (1,2)) {$importPasswordFolders = Read-Host "[default 2/$true] Would you like to import Password Folders? .`n 1) Yes`n 2) No, Skip Password Folders`n(1/2)"}
     switch ($importPasswordFolders) {
         "2" {$importPasswordFolders = $true; 
             $GlobalPasswordFolderMode =  $GlobalPasswordFolderMode ?? $([bool]$("global" -eq $(Select-ObjectFromList -message "Password folder import mode-" -objects @("global","per-company"))))
@@ -459,7 +474,8 @@ if ($InitType -eq 'Full') {
             "1" {$allowSettingFlagsAndTypes = $true}
             "2" {$allowSettingFlagsAndTypes = $false}
     }
-        
+
+    $IncludeIgnoredFirstArticleDirectory = $IncludeIgnoredFirstArticleDirectory ?? [bool]((select-objectfromlist -message "would you like to include root directories when migrating article folders? default behavior is no/false" -objects @("no","yes")) -eq "yes")
 }
 }
 ############################ Migration Logs Path ##############################
