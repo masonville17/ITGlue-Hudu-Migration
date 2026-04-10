@@ -108,7 +108,7 @@ function CollectAndSaveSettings {
         $(Read-Host 'Enter the exact name of the ITGlue Organization that represents your Internal Company ').ToString().Trim()
     if ($null -eq $settings.PlaceInternalDocsInInternalCompany) {
         while ($null -eq $settings.PlaceInternalDocsInInternalCompany) {
-            $internalDocsChoice = $(Read-Host -Prompt 'Do you want documents from your Internal Company to stay under that company instead of going to Global KB? (y/n)').ToString().Trim().ToLower()
+            $internalDocsChoice = $(Read-Host -Prompt 'Do you want documents from your Internal Company to stay under that company instead of going to Global KB? [Default behavior is N/$false] (y/n)').ToString().Trim().ToLower()
             switch ($internalDocsChoice) {
                 { $_ -in @('y','yes') } { $settings.PlaceInternalDocsInInternalCompany = $true; break }
                 { $_ -in @('n','no') } { $settings.PlaceInternalDocsInInternalCompany = $false; break }
@@ -444,7 +444,7 @@ if ($InitType -eq 'Full') {
     }
 
     ############################ PasswordFolders ############################
-    while ($importPasswordFolders -notin (1,2)) {$importPasswordFolders = Read-Host "[ADVANCED, default 1/$false] Would you like to import Password Folders? (requires web access to ITGlue).`n 1) Yes`n 2) No, Skip Password Folders`n(1/2)"}
+    while ($importPasswordFolders -notin (1,2)) {$importPasswordFolders = Read-Host "[default 2/$true] Would you like to import Password Folders? .`n 1) Yes`n 2) No, Skip Password Folders`n(1/2)"}
     switch ($importPasswordFolders) {
         "2" {$importPasswordFolders = $true; 
             $GlobalPasswordFolderMode =  $GlobalPasswordFolderMode ?? $([bool]$("global" -eq $(Select-ObjectFromList -message "Password folder import mode-" -objects @("global","per-company"))))
@@ -474,7 +474,8 @@ if ($InitType -eq 'Full') {
             "1" {$allowSettingFlagsAndTypes = $true}
             "2" {$allowSettingFlagsAndTypes = $false}
     }
-        
+
+    $IncludeIgnoredFirstDirectory = $IncludeIgnoredFirstDirectory ?? [bool]((select-objectfromlist -message "would you like to include root directories when migrating article folders? default behavior is no/false" -objects @("no","yes")) -eq "yes")
 }
 }
 ############################ Migration Logs Path ##############################

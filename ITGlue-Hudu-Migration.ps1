@@ -1743,8 +1743,8 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\ArticleBase.json")) {
             -Document $doc -Files $files `
             -ITGDocumentsPath $ITGDocumentsPath -MatchedCompanies $MatchedCompanies `
             -GlobalKBFolder $GlobalKBFolder `
-            -IncludeIgnoredFirstDirectory:$IncludeIgnoredFirstDirectory `
-            -PlaceInternalDocsInInternalCompany:$PlaceInternalDocsInInternalCompany
+            -IncludeIgnoredFirstDirectory:$($IncludeIgnoredFirstDirectory ?? $false) `
+            -PlaceInternalDocsInInternalCompany:$($PlaceInternalDocsInInternalCompany ?? $false)
 
         if ($article) { $article }
     }
