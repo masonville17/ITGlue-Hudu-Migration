@@ -7,7 +7,7 @@ function Resolve-ArticleFolderPath {
         [Parameter(Mandatory)]
         [string]$FullPath,
 
-        [switch]$IncludeIgnoredFirstDirectory
+        [switch]$IncludeIgnoredFirstArticleDirectory
     )
 
     $resolvedBasePath = [System.IO.Path]::GetFullPath($BasePath)
@@ -40,7 +40,7 @@ function Resolve-ArticleFolderPath {
         @()
     }
 
-    $foldersToInitialize = if ($IncludeIgnoredFirstDirectory) {
+    $foldersToInitialize = if ($IncludeIgnoredFirstArticleDirectory) {
         $parentFolders
     } elseif ($parentFolders.Count -gt 1) {
         @($parentFolders | Select-Object -Skip 1)
@@ -61,6 +61,6 @@ function Resolve-ArticleFolderPath {
         IgnoredFirstDirectory        = if ($parentFolders.Count -gt 0) { $parentFolders[0] } else { $null }
         LeafFolder                   = $leafFolder
         FilenameFromFolder           = $filenameFromFolder
-        IncludedIgnoredFirstDirectory = [bool]$IncludeIgnoredFirstDirectory
+        IncludedIgnoredFirstDirectory = [bool]$IncludeIgnoredFirstArticleDirectory
     }
 }

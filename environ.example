@@ -115,5 +115,5 @@ $allowSettingFlagsAndTypes  = $false
 
 $LocImportAssetLayoutName = "Locations" # name for locations layout
 $ConImportAssetLayoutName = "People" # name for contacts/people layout
-$IncludeIgnoredFirstDirectory = $true # this is the usual default behavior
+$IncludeIgnoredFirstArticleDirectory = $true # this is the usual default behavior
 . .\ITGlue-Hudu-Migration.ps1

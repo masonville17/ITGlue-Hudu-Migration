@@ -475,7 +475,7 @@ if ($InitType -eq 'Full') {
             "2" {$allowSettingFlagsAndTypes = $false}
     }
 
-    $IncludeIgnoredFirstDirectory = $IncludeIgnoredFirstDirectory ?? [bool]((select-objectfromlist -message "would you like to include root directories when migrating article folders? default behavior is no/false" -objects @("no","yes")) -eq "yes")
+    $IncludeIgnoredFirstArticleDirectory = $IncludeIgnoredFirstArticleDirectory ?? [bool]((select-objectfromlist -message "would you like to include root directories when migrating article folders? default behavior is no/false" -objects @("no","yes")) -eq "yes")
 }
 }
 ############################ Migration Logs Path ##############################

@@ -10,7 +10,7 @@ function Start-ArticleStubs {
         [Parameter(Mandatory)][string]$ITGDocumentsPath,
         [Parameter(Mandatory)]$MatchedCompanies,
         $GlobalKBFolder,
-        [switch]$IncludeIgnoredFirstDirectory,
+        [switch]$IncludeIgnoredFirstArticleDirectory,
         [switch]$PlaceInternalDocsInInternalCompany
     )
     $doc = $Document
@@ -42,7 +42,7 @@ function Start-ArticleStubs {
     $folderResolution = Resolve-ArticleFolderPath `
         -BasePath $ITGDocumentsPath `
         -FullPath $DocumentFile.Directory.FullName `
-        -IncludeIgnoredFirstDirectory:$IncludeIgnoredFirstDirectory
+        -IncludeIgnoredFirstDirectory:$IncludeIgnoredFirstArticleDirectory
 
     $folders = $folderResolution.FolderSegments
     $foldersToInitialize = $folderResolution.FoldersToInitialize
