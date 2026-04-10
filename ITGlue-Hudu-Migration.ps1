@@ -140,7 +140,11 @@ Write-Host "######################################################" -ForegroundC
 # Prompt for backups, initialize modules, check versions
 $backups=$(if ($true -eq $NonInteractive) {"Y"} else {Read-Host "Y/n"})
 $ScriptStartTime = $(Get-Date -Format "o")
-$CurrentVersion =  Set-ExternalModulesInitialized -RequiredHuduVersion ([version]"2.39.6") -DisallowedVersions @([version]"2.37.0")
+$CurrentVersion =  Set-ExternalModulesInitialized `
+        -RequiredHuduVersion ([version]"2.39.6") `
+        -DisallowedVersions @([version]"2.37.0") `
+        -HuduBaseURL $($hudubaseurl ?? $settings.HuduBaseDomain ?? $null) `
+        -HuduAPIKey $($huduapikey ?? $settings.HuduApiKey ?? $null)
 
 
 

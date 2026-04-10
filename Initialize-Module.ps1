@@ -39,7 +39,7 @@ if($IsWindows){
     $settingsTop = Join-Path "$home" ".config"
 }
 if (-not (Get-Command -Name Get-EnsuredPath -ErrorAction SilentlyContinue)) { . $PSScriptRoot\Public\Init-OptionsAndLogs.ps1 }
-$debugfolder = $(Get-EnsuredPath -path $(join-path $(Resolve-Path .).path "debug"))
+$debugfolder = $debugFolder ?? $(Get-EnsuredPath -path $(join-path $(Resolve-Path .).path "debug"))
 
 # Define the path to the settings.json file in the detected platform's folder:
 # Running on Windows will save to the user's AppData
