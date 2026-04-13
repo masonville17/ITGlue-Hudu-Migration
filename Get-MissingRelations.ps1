@@ -320,5 +320,5 @@ $AllRelationsToCreate =
 
 
 if (get-command -name Set-HapiErrorsDirectory -ErrorAction SilentlyContinue){try {Set-HapiErrorsDirectory -skipRetry $true} catch {}}
-
+write-host "Creating approximately $($AllRelationsToCreate.count) relations"
 $AllRelationsToCreate | ForEach-Object {New-HuduRelation -FromableType $_.FromableType -FromableID $_.FromableID -ToableType $_.ToableType -ToableID $_.ToableID}
