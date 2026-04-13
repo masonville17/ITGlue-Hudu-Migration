@@ -142,6 +142,23 @@ function Get-HuduIdFromItglueObject {
         Write-Warning "Unable to match ITGlue $AssetType to Hudu object for ITG object $ITGObjectId"
     }
 }
+function Get-SingleRelationValue {
+    param(
+        $Value,
+        [string]$Label
+    )
+
+    $Values = @($Value | Where-Object { $null -ne $_ -and "$_".Trim() -ne '' })
+    if ($Values.Count -eq 1) {
+        return $Values[0]
+    }
+
+    if ($Values.Count -gt 1) {
+        Write-Warning "Skipping relation because $Label resolved to multiple values: $($Values -join ', ')"
+    }
+
+    return $null
+}
 function Get-HuduRelationObject {
     param(
         $ITGlueSourceObjects
@@ -162,11 +179,20 @@ function Get-HuduRelationObject {
 
             $LinkedHuduItem = Get-HuduIdFromItglueObject -AssetType $LinkedReference.AssetType -ITGObjectId $LinkedReference.ResourceId
             if ($LinkedHuduItem) {
+                $FromableType = Get-SingleRelationValue -Value $FromableHudu.type -Label 'FromableType'
+                $FromableID = Get-SingleRelationValue -Value $FromableHudu.HuduObject.id -Label 'FromableID'
+                $ToableType = Get-SingleRelationValue -Value $LinkedHuduItem.type -Label 'ToableType'
+                $ToableID = Get-SingleRelationValue -Value $LinkedHuduItem.HuduObject.id -Label 'ToableID'
+
+                if (-not $FromableType -or -not $FromableID -or -not $ToableType -or -not $ToableID) {
+                    continue
+                }
+
                 [pscustomobject]@{
-                    FromableType = $FromableHudu.type
-                    FromableID   = $FromableHudu.HuduObject.id
-                    ToableType   = $LinkedHuduItem.type
-                    ToableID     = $LinkedHuduItem.HuduObject.id
+                    FromableType = [string]$FromableType
+                    FromableID   = [int]$FromableID
+                    ToableType   = [string]$ToableType
+                    ToableID     = [int]$ToableID
                 }
             }
         }
@@ -249,12 +275,4 @@ $AllRelationsToCreate =
     Sort-Object FromableType, FromableID, ToableType, ToableID -Unique
 
 
-$AllRelationsToCreate | ForEach-Object {
-    try {
-        New-HuduRelation -FromableType $_.FromableType -FromableID $_.FromableID -ToableType $_.ToableType -ToableID $_.ToableID
-    }
-    catch {
-        Write-Host "Skipped or errored creating relation: $($_.FromableType):$($_.FromableID) -> $($_.ToableType):$($_.ToableID)" -ForegroundColor Yellow
-        Write-Host $_.Exception.Message -ForegroundColor DarkYellow
-    }
-}
+$AllRelationsToCreate | ForEach-Object {New-HuduRelation -FromableType $_.FromableType -FromableID $_.FromableID -ToableType $_.ToableType -ToableID $_.ToableID}
