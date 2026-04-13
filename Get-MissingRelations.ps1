@@ -153,7 +153,7 @@ function Get-SingleRelationValue {
         [string]$Label
     )
 
-    $Values = @($Value | Where-Object { $null -ne $_ -and "$_".Trim() -ne '' })
+    $Values = @($Value | Where-Object { $null -ne $_ -and "$_".Trim() -ne '' } | Select-Object -Unique)
     if ($Values.Count -eq 1) {
         return $Values[0]
     }
