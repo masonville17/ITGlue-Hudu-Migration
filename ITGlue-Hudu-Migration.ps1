@@ -146,8 +146,8 @@ $CurrentVersion =  Set-ExternalModulesInitialized `
         -HuduBaseURL $($hudubaseurl ?? $settings.HuduBaseDomain ?? $null) `
         -HuduAPIKey $($huduapikey ?? $settings.HuduApiKey ?? $null)
 
-
-
+write-host "sleeping 50k seconds"
+start-sleep -seconds 50000
 if ($true -eq $allowSettingFlagsAndTypes){. .\Public\Get-UserFlagPreferences.ps1} else {$allowSettingFlagsAndTypes = $false; $flagPasswordsByType = $false; $ObjectFlagMap = @{};}
 # Check if we have a logs folder
 
@@ -289,7 +289,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Companies.json")) {
 
     if (($PrimaryCompany | measure-object).count -ne 1) {
         Write-Host "A single Internal Company was not found please run the script again and check the company name entered exactly matches what is in ITGlue" -foregroundcolor red
-        exit 1
+        # exit 1
     }
 
     # Lets confirm it is the correct one
@@ -2507,7 +2507,6 @@ write-host "wrapup 3/9... adding missing relations (this can take a long while).
 if (get-command -name Set-HapiErrorsDirectory -ErrorAction SilentlyContinue){try {Set-HapiErrorsDirectory -skipRetry $true} catch {}}
 . .\Get-MissingRelations.ps1
 
-@($AssetRelationsToCreate) + @($ConfigurationRelationsToCreate) | ForEach-Object {try {New-HuduRelation -FromableType  $_.FromableType -FromableID    $_.FromableID -ToableType    $_.ToableType -ToableID      $_.ToableID} catch {Write-Host "Skipped or errored: $_" -ForegroundColor Yellow}}
 
 write-host "wrapup 4/9... archiving passwords, assets, configurations as they had been in ITGlue (this can take a while)"
 $DocsCsv = import-csv "$ITGLueExportPath\documents.csv"
