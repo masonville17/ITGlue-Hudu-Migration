@@ -321,4 +321,11 @@ $AllRelationsToCreate =
 
 if (get-command -name Set-HapiErrorsDirectory -ErrorAction SilentlyContinue){try {Set-HapiErrorsDirectory -skipRetry $true} catch {}}
 write-host "Creating approximately $($AllRelationsToCreate.count) relations"
-$AllRelationsToCreate | ForEach-Object {New-HuduRelation -FromableType $_.FromableType -FromableID $_.FromableID -ToableType $_.ToableType -ToableID $_.ToableID}
+$NewRelationsCreated = @(
+    $AllRelationsToCreate | ForEach-Object {
+        New-HuduRelation -FromableType $_.FromableType -FromableID $_.FromableID -ToableType $_.ToableType -ToableID $_.ToableID
+    }
+)
+
+$AllRelationsToCreate | ConvertTo-Json -Depth 75 | Out-File (Join-Path $settings.MigrationLogs 'relations-to-create.json')
+$NewRelationsCreated | ConvertTo-Json -Depth 75 | Out-File (Join-Path $settings.MigrationLogs 'relations-created.json')
