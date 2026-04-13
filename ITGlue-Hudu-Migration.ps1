@@ -288,7 +288,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Companies.json")) {
 
     if (($PrimaryCompany | measure-object).count -ne 1) {
         Write-Host "A single Internal Company was not found please run the script again and check the company name entered exactly matches what is in ITGlue" -foregroundcolor red
-        # exit 1
+        exit 1
     }
 
     # Lets confirm it is the correct one
