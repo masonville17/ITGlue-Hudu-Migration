@@ -20,11 +20,7 @@ function Get-RelatedToDoc {
     }
 
     $baseUri = $ITGlue_Base_URI.TrimEnd('/')
-    $uriBuilder = [System.UriBuilder]::new("$baseUri/organizations/$OrganizationId/relationships/documents/$DocID")
-    $query = [System.Web.HttpUtility]::ParseQueryString([string]::Empty)
-    $query['include'] = 'related_items'
-    $uriBuilder.Query = $query.ToString()
-    $uri = $uriBuilder.Uri.AbsoluteUri
+    $uri = "$baseUri/organizations/$OrganizationId/relationships/documents/$DocID"
 
     try {
         Invoke-RestMethod -Method GET -Uri $uri -Headers $headers
@@ -48,6 +44,7 @@ function Convert-ITGlueTypeToRelationAssetType {
         '^configurations?$' { return 'configuration' }
         '^passwords?$' { return 'password' }
         '^documents?$' { return 'document' }
+        '^contacts?$' { return 'contact' }
         '^locations?$' { return 'location' }
         '^organizations?$' { return 'organization' }
         '^companies$' { return 'organization' }
@@ -108,6 +105,10 @@ function Get-HuduIdFromItglueObject {
         'document' {
             $FoundHuduObject = $MatchedArticleMap[$ITGObjectId].HuduObject
             $FoundHuduAssetType = 'Article'
+        }
+        'contact' {
+            $FoundHuduObject = $MatchedContactMap[$ITGObjectId].HuduObject
+            $FoundHuduAssetType = 'Asset'
         }
         'flexible_asset' {
             $FoundHuduObject = $MatchedAssetMap[$ITGObjectId].HuduObject
@@ -174,23 +175,26 @@ function Get-HuduRelationObject {
     return $NewHuduRelations
 }
 
-write-host "refreshing assets"
+write-host "refreshing $($MatchedAssets.count) assets"
 $FreshITGAssets= $MatchedAssets |% { Get-ITGlueFlexibleAssets -id $_.ITGObject.id -include related_items}
 $RelatedAssets = $FreshITGAssets |? {$_.data.relationships.'related-items'.data}
 
-write-host "refreshing configs"
+write-host "refreshing $($MatchedConfigurations.count) configs"
 $FreshConfigurations = $MatchedConfigurations | % {Get-ITGlueConfigurations -id $_.itgobject.id -include related_items}
 $RelatedConfigurations = $FreshConfigurations |? {$_.data.relationships.'related-items'.data}
 
-write-host "refreshing passwords"
+write-host "refreshing $($MatchedPasswords.count) passwords"
 $FreshPasswords = $MatchedPasswords | % {Get-ITGluePasswords -id $_.itgobject.id -include related_items}
 $RelatedPasswords = $FreshPasswords |? {$_.data.relationships.'related-items'.data}
 
-write-host "refreshing articles"
+write-host "refreshing $($MatchedContacts.count) contacts"
+$FreshContacts = $MatchedContacts | % {Get-ITGlueContacts -id $_.ITGObject.id -include related_items}
+$RelatedContacts = $FreshContacts |? {$_.data.relationships.'related-items'.data}
+
+write-host "refreshing $($MatchedArticles.count) articles"
 $FreshDocuments = $MatchedArticles | ForEach-Object {
     Get-RelatedToDoc -DocID $_.ITGObject.id -OrganizationId $_.ITGObject.attributes.'organization-id' -ITGKey $ITGKey
 }
-
 $RelatedDocuments = $FreshDocuments | Where-Object {
     $_.data.relationships.'related-items'.data
 }
@@ -202,6 +206,10 @@ $MatchedConfigurations | ForEach-Object { $MatchedConfigurationMap[[string]$_.IT
 write-host "mapping articles"
 $MatchedArticleMap = @{}
 $MatchedArticles | ForEach-Object { $MatchedArticleMap[[string]$_.ITGID] = $_ }
+
+write-host "mapping contacts"
+$MatchedContactMap = @{}
+$MatchedContacts | ForEach-Object { $MatchedContactMap[[string]$_.ITGID] = $_ }
 
 write-host "mapping assets"
 $MatchedAssetMap = @{}
@@ -224,6 +232,7 @@ $MatchedWebsiteMap = @{}
 $MatchedWebsites | ForEach-Object { $MatchedWebsiteMap[[string]$_.ITGID] = $_ }
 
 $DocumentRelationsToCreate = Get-HuduRelationObject -ITGlueSourceObjects $RelatedDocuments
+$ContactRelationsToCreate = Get-HuduRelationObject -ITGlueSourceObjects $RelatedContacts
 $ConfigurationRelationsToCreate = Get-HuduRelationObject -ITGlueSourceObjects $RelatedConfigurations
 $AssetRelationsToCreate = Get-HuduRelationObject -ITGlueSourceObjects $RelatedAssets
 $PasswordRelationsToCreate = Get-HuduRelationObject -ITGlueSourceObjects $RelatedPasswords
@@ -233,6 +242,7 @@ $PasswordRelationsToCreate = Get-HuduRelationObject -ITGlueSourceObjects $Relate
 $AllRelationsToCreate =
     @($AssetRelationsToCreate) +
     @($DocumentRelationsToCreate) +
+    @($ContactRelationsToCreate) +
     @($PasswordRelationsToCreate) +
     @($ConfigurationRelationsToCreate) |
     Where-Object { $_ } |

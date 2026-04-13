@@ -146,8 +146,7 @@ $CurrentVersion =  Set-ExternalModulesInitialized `
         -HuduBaseURL $($hudubaseurl ?? $settings.HuduBaseDomain ?? $null) `
         -HuduAPIKey $($huduapikey ?? $settings.HuduApiKey ?? $null)
 
-write-host "sleeping 50k seconds"
-start-sleep -seconds 50000
+
 if ($true -eq $allowSettingFlagsAndTypes){. .\Public\Get-UserFlagPreferences.ps1} else {$allowSettingFlagsAndTypes = $false; $flagPasswordsByType = $false; $ObjectFlagMap = @{};}
 # Check if we have a logs folder
 
