@@ -14,6 +14,11 @@ function Get-RelatedToDoc {
         [string]$ITGlue_Base_URI = 'https://api.itglue.com'
     )
 
+    if ($OrganizationId -le 0 -or $DocID -le 0) {
+        Write-Warning "Skipping ITGlue document lookup because doc/org id is invalid. DocID=$DocID OrganizationId=$OrganizationId"
+        return
+    }
+
     $headers = @{
         'x-api-key'    = $ITGKey
         'Content-Type' = 'application/vnd.api+json'
@@ -159,6 +164,31 @@ function Get-SingleRelationValue {
 
     return $null
 }
+function Get-ArticleLookupInfo {
+    param(
+        $Article
+    )
+
+    $ResolvedDocId = Get-SingleRelationValue -Value @(
+        $Article.ITGID
+        $Article.ITGObject.id
+    ) -Label 'Document ITGID'
+
+    $ResolvedOrganizationId = Get-SingleRelationValue -Value @(
+        $Article.Company.ITGID
+        $Article.Company.ITGCompanyObject.id
+        $Article.ITGObject.attributes.'organization-id'
+    ) -Label 'Document OrganizationId'
+
+    if (-not $ResolvedDocId -or -not $ResolvedOrganizationId) {
+        return $null
+    }
+
+    return [pscustomobject]@{
+        DocID          = [long]$ResolvedDocId
+        OrganizationId = [long]$ResolvedOrganizationId
+    }
+}
 function Get-HuduRelationObject {
     param(
         $ITGlueSourceObjects
@@ -201,6 +231,17 @@ function Get-HuduRelationObject {
     return $NewHuduRelations
 }
 
+
+if (-not $MatchedAssets) {$MatchedAssets = (Get-Content -path "$MigrationLogs\Assets.json" | ConvertFrom-json -depth 100) }
+if (-not $matchedConfigurations) {$matchedConfigurations = (Get-Content -path "$MigrationLogs\Configurations.json" | ConvertFrom-json -depth 100) }
+if (-not $MatchedPasswords) {$MatchedPasswords = (Get-Content -path "$MigrationLogs\Passwords.json" | ConvertFrom-json -depth 100) }
+if (-not $MatchedContacts) {$MatchedContacts = (Get-Content -path "$MigrationLogs\Contacts.json" | ConvertFrom-json -depth 100) }
+if (-not $MatchedArticles) {$MatchedArticles = (Get-Content -path "$MigrationLogs\Articles.json" | ConvertFrom-json -depth 100) }
+if (-not $MatchedLocations) {$MatchedLocations = (Get-Content -path "$MigrationLogs\Locations.json" | ConvertFrom-json -depth 100) }
+if (-not $MatchedPasswords) {$MatchedPasswords = (Get-Content -path "$MigrationLogs\Passwords.json" | ConvertFrom-json -depth 100) }
+if (-not $MatchedWebsites) {$MatchedWebsites = (Get-Content -path "$MigrationLogs\websites.json" | ConvertFrom-json -depth 100) }
+
+
 write-host "refreshing $($MatchedAssets.count) assets"
 $FreshITGAssets= $MatchedAssets |% { Get-ITGlueFlexibleAssets -id $_.ITGObject.id -include related_items}
 $RelatedAssets = $FreshITGAssets |? {$_.data.relationships.'related-items'.data}
@@ -219,7 +260,10 @@ $RelatedContacts = $FreshContacts |? {$_.data.relationships.'related-items'.data
 
 write-host "refreshing $($MatchedArticles.count) articles"
 $FreshDocuments = $MatchedArticles | ForEach-Object {
-    Get-RelatedToDoc -DocID $_.ITGObject.id -OrganizationId $_.ITGObject.attributes.'organization-id' -ITGKey $ITGKey
+    $ArticleLookup = Get-ArticleLookupInfo -Article $_
+    if ($ArticleLookup) {
+        Get-RelatedToDoc -DocID $ArticleLookup.DocID -OrganizationId $ArticleLookup.OrganizationId -ITGKey $ITGKey -ITGlue_Base_URI $settings.ITGAPIEndpoint
+    }
 }
 $RelatedDocuments = $FreshDocuments | Where-Object {
     $_.data.relationships.'related-items'.data
@@ -274,5 +318,7 @@ $AllRelationsToCreate =
     Where-Object { $_ } |
     Sort-Object FromableType, FromableID, ToableType, ToableID -Unique
 
+
+if (get-command -name Set-HapiErrorsDirectory -ErrorAction SilentlyContinue){try {Set-HapiErrorsDirectory -skipRetry $true} catch {}}
 
 $AllRelationsToCreate | ForEach-Object {New-HuduRelation -FromableType $_.FromableType -FromableID $_.FromableID -ToableType $_.ToableType -ToableID $_.ToableID}
