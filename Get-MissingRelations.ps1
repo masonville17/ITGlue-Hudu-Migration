@@ -20,7 +20,11 @@ function Get-RelatedToDoc {
     }
 
     $baseUri = $ITGlue_Base_URI.TrimEnd('/')
-    $uri = "$baseUri/organizations/$OrganizationId/relationships/documents/$DocID"
+    $uriBuilder = [System.UriBuilder]::new("$baseUri/organizations/$OrganizationId/relationships/documents/$DocID")
+    $query = [System.Web.HttpUtility]::ParseQueryString([string]::Empty)
+    $query['include'] = 'related_items'
+    $uriBuilder.Query = $query.ToString()
+    $uri = $uriBuilder.Uri.AbsoluteUri
 
     try {
         Invoke-RestMethod -Method GET -Uri $uri -Headers $headers
@@ -34,6 +38,58 @@ function Get-RelatedToDoc {
         }
     }
 }
+function Convert-ITGlueTypeToRelationAssetType {
+    param(
+        [string]$TypeName
+    )
+
+    switch -Regex (($TypeName ?? '').Trim().ToLower()) {
+        '^flexible[-_\s]?assets?$' { return 'flexible_asset' }
+        '^configurations?$' { return 'configuration' }
+        '^passwords?$' { return 'password' }
+        '^documents?$' { return 'document' }
+        '^locations?$' { return 'location' }
+        '^organizations?$' { return 'organization' }
+        '^companies$' { return 'organization' }
+        '^domains?$' { return 'domain' }
+        '^websites?$' { return 'domain' }
+        default { return $null }
+    }
+}
+function Resolve-ITGlueRelationReference {
+    param(
+        $ITGlueRelationObject
+    )
+
+    if (-not $ITGlueRelationObject) {
+        return $null
+    }
+
+    $AssetType = $null
+    $ResourceId = $null
+
+    if ($ITGlueRelationObject.attributes.'asset-type' -and $ITGlueRelationObject.attributes.'resource-id') {
+        $AssetType = Convert-ITGlueTypeToRelationAssetType -TypeName $ITGlueRelationObject.attributes.'asset-type'
+        $ResourceId = $ITGlueRelationObject.attributes.'resource-id'
+    }
+    elseif ($ITGlueRelationObject.attributes.'destination_type' -and $ITGlueRelationObject.attributes.'destination_id') {
+        $AssetType = Convert-ITGlueTypeToRelationAssetType -TypeName $ITGlueRelationObject.attributes.'destination_type'
+        $ResourceId = $ITGlueRelationObject.attributes.'destination_id'
+    }
+    elseif ($ITGlueRelationObject.type -and $ITGlueRelationObject.id) {
+        $AssetType = Convert-ITGlueTypeToRelationAssetType -TypeName $ITGlueRelationObject.type
+        $ResourceId = $ITGlueRelationObject.id
+    }
+
+    if (-not $AssetType -or -not $ResourceId) {
+        return $null
+    }
+
+    return [pscustomobject]@{
+        AssetType  = $AssetType
+        ResourceId = [string]$ResourceId
+    }
+}
 function Get-HuduIdFromItglueObject {
     param(
         $ITGObjectId,
@@ -41,35 +97,43 @@ function Get-HuduIdFromItglueObject {
     )
 
     $ITGObjectId = [string]$ITGObjectId
-    $FoundHuduAsset = $null
+    $FoundHuduObject = $null
     $FoundHuduAssetType = $null
 
     switch ($AssetType) {
         'configuration' {
-            $FoundHuduAsset = $MatchedConfigurationMap[$ITGObjectId]
-            $FoundHuduAssetType = $FoundHuduAsset.HuduObject.object_type
+            $FoundHuduObject = $MatchedConfigurationMap[$ITGObjectId].HuduObject
+            $FoundHuduAssetType = "Asset"
         }
         'document' {
-            $FoundHuduAsset = $MatchedArticleMap[$ITGObjectId]
+            $FoundHuduObject = $MatchedArticleMap[$ITGObjectId].HuduObject
             $FoundHuduAssetType = 'Article'
         }
         'flexible_asset' {
-            $FoundHuduAsset = $MatchedAssetMap[$ITGObjectId]
-            $FoundHuduAssetType = $FoundHuduAsset.HuduObject.object_type
+            $FoundHuduObject = $MatchedAssetMap[$ITGObjectId].HuduObject
+            $FoundHuduAssetType = "Asset"
         }
         'location' {
-            $FoundHuduAsset = $MatchedLocationMap[$ITGObjectId]
-            $FoundHuduAssetType = $FoundHuduAsset.HuduObject.object_type
+            $FoundHuduObject = $MatchedLocationMap[$ITGObjectId].HuduObject
+            $FoundHuduAssetType = "Asset"
         }
         'password' {
-            $FoundHuduAsset = $MatchedPasswordMap[$ITGObjectId]
+            $FoundHuduObject = $MatchedPasswordMap[$ITGObjectId].HuduObject
             $FoundHuduAssetType = 'AssetPassword'
+        }
+        'organization' {
+            $FoundHuduObject = $MatchedCompanyMap[$ITGObjectId].HuduCompanyObject
+            $FoundHuduAssetType = 'Company'
+        }
+        'domain' {
+            $FoundHuduObject = $MatchedWebsiteMap[$ITGObjectId].HuduObject
+            $FoundHuduAssetType = 'Website'
         }
     }
 
-    if ($FoundHuduAsset) {
+    if ($FoundHuduObject) {
         return [pscustomobject]@{
-            HuduObject = $FoundHuduAsset.HuduObject
+            HuduObject = $FoundHuduObject
             Type       = $FoundHuduAssetType
         }
     }
@@ -83,56 +147,25 @@ function Get-HuduRelationObject {
     )
 
     $NewHuduRelations = foreach ($ITGlueSourceObject in $ITGlueSourceObjects) {
-        switch ($ITGlueSourceObject.data.type) {
-            'flexible-assets' { $AssetType = 'flexible_asset' }
-            'configurations'  { $AssetType = 'configuration' }
-            'passwords'       { $AssetType = 'password' }
-            'documents'       { $AssetType = 'document' }
-            default { continue }
-        }
+        $AssetType = Convert-ITGlueTypeToRelationAssetType -TypeName $ITGlueSourceObject.data.type
+        if (-not $AssetType) { continue }
 
         $FromableHudu = Get-HuduIdFromItglueObject -AssetType $AssetType -ITGObjectId $ITGlueSourceObject.data.id
         if (-not $FromableHudu) { continue }
 
         Write-Host "Determining Hudu objects for source $AssetType / ITGID: $($ITGlueSourceObject.data.id)" -ForegroundColor Cyan
 
-        if (@($ITGlueSourceObject.included).Count -gt 0) {
-              foreach ($LinkedITGlueObject in $ITGlueSourceObject.included) {
-                $LinkedAssetType = $LinkedITGlueObject.attributes.'asset-type'
-                $LinkedResourceId = $LinkedITGlueObject.attributes.'resource-id'
+        foreach ($LinkedITGlueObject in @($ITGlueSourceObject.included) + @($ITGlueSourceObject.data.relationships.'related-items'.data)) {
+            $LinkedReference = Resolve-ITGlueRelationReference -ITGlueRelationObject $LinkedITGlueObject
+            if (-not $LinkedReference) { continue }
 
-                if (-not $LinkedAssetType -or -not $LinkedResourceId) { continue }
-
-                $LinkedHuduItem = Get-HuduIdFromItglueObject -AssetType $LinkedAssetType -ITGObjectId $LinkedResourceId
-                if ($LinkedHuduItem) {
-                    [pscustomobject]@{
-                        FromableType = $FromableHudu.type
-                        FromableID   = $FromableHudu.HuduObject.id
-                        ToableType   = $LinkedHuduItem.type
-                        ToableID     = $LinkedHuduItem.HuduObject.id
-                    }
-                }
-            }
-        }
-        else {
-            foreach ($LinkedRef in $ITGlueSourceObject.data.relationships.'related-items'.data) {
-                $LinkedAssetType = $LinkedRef.attributes.'asset-type'
-                $LinkedResourceId = $LinkedRef.attributes.'resource-id'
-
-                if (-not $LinkedAssetType -or -not $LinkedResourceId) {
-                    Write-Warning "Document relation reference missing asset-type/resource-id for source ITGID $($ITGlueSourceObject.data.id)"
-                    continue
-                }
-
-                
-                $LinkedHuduItem = Get-HuduIdFromItglueObject -AssetType $LinkedAssetType -ITGObjectId $LinkedResourceId
-                if ($LinkedHuduItem) {
-                    [pscustomobject]@{
-                        FromableType = $FromableHudu.type
-                        FromableID   = $FromableHudu.HuduObject.id
-                        ToableType   = $LinkedHuduItem.type
-                        ToableID     = $LinkedHuduItem.HuduObject.id
-                    }
+            $LinkedHuduItem = Get-HuduIdFromItglueObject -AssetType $LinkedReference.AssetType -ITGObjectId $LinkedReference.ResourceId
+            if ($LinkedHuduItem) {
+                [pscustomobject]@{
+                    FromableType = $FromableHudu.type
+                    FromableID   = $FromableHudu.HuduObject.id
+                    ToableType   = $LinkedHuduItem.type
+                    ToableID     = $LinkedHuduItem.HuduObject.id
                 }
             }
         }
@@ -141,20 +174,19 @@ function Get-HuduRelationObject {
     return $NewHuduRelations
 }
 
-
+write-host "refreshing assets"
 $FreshITGAssets= $MatchedAssets |% { Get-ITGlueFlexibleAssets -id $_.ITGObject.id -include related_items}
 $RelatedAssets = $FreshITGAssets |? {$_.data.relationships.'related-items'.data}
 
-
+write-host "refreshing configs"
 $FreshConfigurations = $MatchedConfigurations | % {Get-ITGlueConfigurations -id $_.itgobject.id -include related_items}
 $RelatedConfigurations = $FreshConfigurations |? {$_.data.relationships.'related-items'.data}
 
+write-host "refreshing passwords"
 $FreshPasswords = $MatchedPasswords | % {Get-ITGluePasswords -id $_.itgobject.id -include related_items}
 $RelatedPasswords = $FreshPasswords |? {$_.data.relationships.'related-items'.data}
 
-
-
-
+write-host "refreshing articles"
 $FreshDocuments = $MatchedArticles | ForEach-Object {
     Get-RelatedToDoc -DocID $_.ITGObject.id -OrganizationId $_.ITGObject.attributes.'organization-id' -ITGKey $ITGKey
 }
@@ -163,24 +195,33 @@ $RelatedDocuments = $FreshDocuments | Where-Object {
     $_.data.relationships.'related-items'.data
 }
 
-
+write-host "mapping configs"
 $MatchedConfigurationMap = @{}
 $MatchedConfigurations | ForEach-Object { $MatchedConfigurationMap[[string]$_.ITGID] = $_ }
 
+write-host "mapping articles"
 $MatchedArticleMap = @{}
 $MatchedArticles | ForEach-Object { $MatchedArticleMap[[string]$_.ITGID] = $_ }
 
+write-host "mapping assets"
 $MatchedAssetMap = @{}
 $MatchedAssets | ForEach-Object { $MatchedAssetMap[[string]$_.ITGID] = $_ }
 
+write-host "mapping companies"
+$MatchedCompanyMap = @{}
+$MatchedCompanies | ForEach-Object { $MatchedCompanyMap[[string]$_.ITGID] = $_ }
+
+write-host "mapping locations"
 $MatchedLocationMap = @{}
 $MatchedLocations | ForEach-Object { $MatchedLocationMap[[string]$_.ITGID] = $_ }
 
+write-host "mapping passwords"
 $MatchedPasswordMap = @{}
 $MatchedPasswords | ForEach-Object { $MatchedPasswordMap[[string]$_.ITGID] = $_ }
 
-$matchedCodumentsMap = @{}
-$matchedDocuments | ForEach-Object { $matchedCodumentsMap[[string]$_.ITGID] = $_ }
+write-host "mapping websites"
+$MatchedWebsiteMap = @{}
+$MatchedWebsites | ForEach-Object { $MatchedWebsiteMap[[string]$_.ITGID] = $_ }
 
 $DocumentRelationsToCreate = Get-HuduRelationObject -ITGlueSourceObjects $RelatedDocuments
 $ConfigurationRelationsToCreate = Get-HuduRelationObject -ITGlueSourceObjects $RelatedConfigurations
@@ -189,12 +230,6 @@ $PasswordRelationsToCreate = Get-HuduRelationObject -ITGlueSourceObjects $Relate
 
 
 
-<# Uncomment and run the block below
-$createdConfigurationRelations =  $ConfigurationRelationsToCreate | % {New-HuduRelation -FromableType $_.FromableType -FromableID $_.FromableID -ToableID $_.ToableID -ToableType $_.ToableType}
-$createdAssetRelations =  $AssetRelationsToCreate | % {New-HuduRelation -FromableType $_.FromableType -FromableID $_.FromableID -ToableID $_.ToableID -ToableType $_.ToableType}
-$createdPasswordRelations =  $PasswordRelationsToCreate | % {New-HuduRelation -FromableType $_.FromableType -FromableID $_.FromableID -ToableID $_.ToableID -ToableType $_.ToableType}
-#>
-@($AssetRelationsToCreate) + @($DocumentRelationsToCreate) + @($PasswordRelationsToCreate) + @($ConfigurationRelationsToCreate) | ForEach-Object {try {New-HuduRelation -FromableType  $_.FromableType -FromableID    $_.FromableID -ToableType    $_.ToableType -ToableID      $_.ToableID} catch {Write-Host "Skipped or errored: $_" -ForegroundColor Yellow}}
 $AllRelationsToCreate =
     @($AssetRelationsToCreate) +
     @($DocumentRelationsToCreate) +

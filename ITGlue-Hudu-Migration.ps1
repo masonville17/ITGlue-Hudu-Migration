@@ -2506,7 +2506,7 @@ write-host "wrapup 3/9... adding missing relations (this can take a long while).
 # set retry to off/false in HuduAPI module, this will save time during adding potentially existent relations.
 if (get-command -name Set-HapiErrorsDirectory -ErrorAction SilentlyContinue){try {Set-HapiErrorsDirectory -skipRetry $true} catch {}}
 . .\Get-MissingRelations.ps1
-
+$AllRelationsToCreate | ConvertTo-Json -depth 75 | Out-File $(join-path $settings.MigrationLogs "relations-created.json")
 
 write-host "wrapup 4/9... archiving passwords, assets, configurations as they had been in ITGlue (this can take a while)"
 $DocsCsv = import-csv "$ITGLueExportPath\documents.csv"
