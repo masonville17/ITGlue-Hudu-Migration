@@ -379,8 +379,13 @@ function Invoke-HuduConfigurationIPAMSync {
     $assetIdsByIp = @{}
     foreach ($row in $configCollection) {
       foreach ($ip in Extract-IPv4sFromString -Text $row.primary_ip) {
-        if (-not $assetIdsByIp.ContainsKey($ip) -and $row.HuduID) {
-          $assetIdsByIp[$ip] = [int]$row.HuduID
+        $assetId = $row.HuduObject.id
+        if (-not $assetId) {
+          $assetId = $row.HuduID
+        }
+
+        if (-not $assetIdsByIp.ContainsKey($ip) -and $assetId) {
+          $assetIdsByIp[$ip] = [int]$assetId
         }
       }
     }
@@ -393,7 +398,6 @@ function Invoke-HuduConfigurationIPAMSync {
         Address     = $ip
         CompanyId   = $companyId
         NetworkId   = $net.id
-        Status      = 'active'
         Description = 'Auto-imported from configurations'
       }
 
@@ -404,6 +408,9 @@ function Invoke-HuduConfigurationIPAMSync {
 
       if ($assetIdsByIp.ContainsKey($ip)) {
         $ipParams.AssetId = $assetIdsByIp[$ip]
+        $ipParams.Status = 'assigned'
+      } else {
+        $ipParams.Status = 'unassigned'
       }
 
       $ipObj = Ensure-HuduIPAddress @ipParams
@@ -648,6 +655,16 @@ function Ensure-HuduIPAddress {
     SkipDNSValidation = $SkipDNSValidation
   }
 
+  $newIpCommand = Get-Command -Name New-HuduIPAddress -ErrorAction SilentlyContinue
+
+  if (
+    $PSBoundParameters.ContainsKey('Status') -and
+    -not [string]::IsNullOrWhiteSpace($Status) -and
+    $null -ne $newIpCommand -and
+    $newIpCommand.Parameters.ContainsKey('Status')
+  ) {
+    $newIpParams.Status = $Status
+  }
   if ($PSBoundParameters.ContainsKey('FQDN') -and -not [string]::IsNullOrWhiteSpace($FQDN)) {
     $newIpParams.FQDN = $FQDN
   }
@@ -673,15 +690,16 @@ function Ensure-HuduNetwork {
   )
 
   $Address = $Address.Trim()
-  # If it's a public single host (no peers discovered), prefer /32 and network_type=1
-  $isHost   = ($Address -notmatch '/')
-  $isPublic = $isHost -and -not (Test-Rfc1918 -Ip $Address)
-  if ($isPublic) {
-    $Address     = Ensure-Cidr -AddressOrHost $Address -DefaultPrefix 32
-    $NetworkType = 1
-  } elseif ($Address -notmatch '/\d{1,2}$') {
+  $isHost = ($Address -notmatch '/')
+  if ($Address -notmatch '/\d{1,2}$') {
     # normalize any bare private host as /24 by default (tweak to your taste)
-    $Address = Ensure-Cidr -AddressOrHost $Address -DefaultPrefix 24
+    $defaultPrefix = if (-not (Test-Rfc1918 -Ip $Address)) { 32 } else { 24 }
+    $Address = Ensure-Cidr -AddressOrHost $Address -DefaultPrefix $defaultPrefix
+  }
+
+  $baseIp = ($Address -split '/', 2)[0]
+  if (-not $PSBoundParameters.ContainsKey('NetworkType')) {
+    $NetworkType = if (Test-Rfc1918 -Ip $baseIp) { 0 } else { 1 }
   }
 
   $Name = $Name ?? $Address

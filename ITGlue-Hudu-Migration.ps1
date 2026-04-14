@@ -1015,7 +1015,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Configurations.json")
     }
     if ($true -eq $ImportConfigInterfaces){
         Write-Host "Adding configuration interfaces to IPam now."
-        $MatchedInterfaces = Invoke-HuduConfigurationIPAMSync -MatchedConfigurations $MatchedConfigurations
+        Invoke-HuduConfigurationIPAMSync -MatchedConfigurations $MatchedConfigurations
         $MatchedInterfaces | convertto-json -depth 99 | out-file "$MigrationLogs\NetworksAndInterfaces.json"
         
     }
