@@ -69,6 +69,8 @@ $FontAwesomeUpgrade = Get-FontAwesomeMap
 # initialization helper and field requirement helper, logging, selection helper
 . $PSScriptRoot\Public\Get-ITGFieldPopulated.ps1
 . $PSScriptRoot\Public\JWT-Auth.ps1
+. $PSScriptRoot\Public\NetworkInformation.ps1
+
 if (-not (Get-Command -Name Get-UserFlagSetup -ErrorAction SilentlyContinue)) { . $PSScriptRoot\Public\Add-OptionalFlags.ps1 }
 
 ############################### End of Functions ###############################
@@ -1011,6 +1013,19 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Configurations.json")
         Write-Error "This should never have happened some how you selected something other than 1, 2 or 3 :/"
         exit 1
     }
+    if ($true -eq $ImportConfigInterfaces){
+        Write-Host "Adding configuration interfaces to IPam now."
+        $ConfigGroups = $MatchedConfigurations | where-object {$null -ne $_.HuduID -and $null -ne $($_.HuduObject.Fields | where-object {$_.label -ieq "Primary IP"} | select-object -first 1).value} | Group-Object { $_.HuduObject.company_id } -AsHashTable -AsString
+        foreach ($companyId in $ConfigGroups.GetEnumerator().Name){
+            $configsForCompany = $ConfigGroups["$companyID"]
+            write-host "company ID $companyID has $($configsForCompany.count) configs with addresses"
+            $ensuredNetworks = New-Object System.Collections.Generic.List[object]
+            $EnsuredIPAddresses = New-Object System.Collections.Generic.List[object]
+            $obs = Collect-CompanyIpObservations -ConfigCollection $ConfigCollection
+
+        }
+    }
+
 
     # Save the results to resume from if needed
     $MatchedConfigurations | ConvertTo-Json -depth 100 | Out-File "$MigrationLogs\Configurations.json"

@@ -453,6 +453,14 @@ if ($InitType -eq 'Full') {
         "1" {$importPasswordFolders = $false; $GlobalPasswordFolderMode = $null; $companyPasswordFolderAttributionMove = $false}
     }    
 
+    ############################## Interfaces ##############################
+    while ($ImportConfigInterfaces -notin (1,2)) {$ImportConfigInterfaces = Read-Host "Would you like to import configuration interfaces (IP Addresses) into IPam in Hudu?.`n 1) Yes`n 2) No, Skip Interfaces/Addresses`n(1/2)"}
+    switch ($ImportConfigInterfaces) {
+        "2" {$ImportConfigInterfaces = $true}
+        "1" {$ImportConfigInterfaces = $false}
+    }
+
+
     ############################ Image Anchors Regex ############################
     $OptionalImageAnchorReplace = $OptionalImageAnchorReplace ?? $true
     while ($OptionalImageAnchorReplace -notin @(1,2, $true, $false)) {$OptionalImageAnchorReplace = Read-Host "[Other, default 1/$true] Would you like to replace links to hosted images in Hudu? (Not commonly needed but can be good for images-as-links in articles).`n 1) Yes`n 2) No, skip image-links`n(1/2)"}
