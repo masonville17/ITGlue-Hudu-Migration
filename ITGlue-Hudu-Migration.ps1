@@ -147,7 +147,6 @@ $CurrentVersion =  Set-ExternalModulesInitialized `
         -HuduAPIKey $($huduapikey ?? $settings.HuduApiKey ?? $null)
 
 
-
 if ($true -eq $allowSettingFlagsAndTypes){. .\Public\Get-UserFlagPreferences.ps1} else {$allowSettingFlagsAndTypes = $false; $flagPasswordsByType = $false; $ObjectFlagMap = @{};}
 # Check if we have a logs folder
 
@@ -2506,8 +2505,6 @@ write-host "wrapup 3/9... adding missing relations (this can take a long while).
 # set retry to off/false in HuduAPI module, this will save time during adding potentially existent relations.
 if (get-command -name Set-HapiErrorsDirectory -ErrorAction SilentlyContinue){try {Set-HapiErrorsDirectory -skipRetry $true} catch {}}
 . .\Get-MissingRelations.ps1
-
-@($AssetRelationsToCreate) + @($ConfigurationRelationsToCreate) | ForEach-Object {try {New-HuduRelation -FromableType  $_.FromableType -FromableID    $_.FromableID -ToableType    $_.ToableType -ToableID      $_.ToableID} catch {Write-Host "Skipped or errored: $_" -ForegroundColor Yellow}}
 
 write-host "wrapup 4/9... archiving passwords, assets, configurations as they had been in ITGlue (this can take a while)"
 $DocsCsv = import-csv "$ITGLueExportPath\documents.csv"

@@ -1,7 +1,7 @@
     if (-not $MatchedCompanies) {$MatchedCompanies = (Get-Content -path "$MigrationLogs\Companies.json" | ConvertFrom-json -depth 100) }
     if (-not $MatchedLocations) {$MatchedLocations = (Get-Content -path "$MigrationLogs\Locations.json" | ConvertFrom-json -depth 100) }
     if (-not $MatchedContacts) {$MatchedContacts = (Get-Content -path "$MigrationLogs\Contacts.json" | ConvertFrom-json -depth 100) }
-    if (-not $MatchedCoonfigurations) {$MatchedCoonfigurations = (Get-Content -path "$MigrationLogs\Configurations.json" | ConvertFrom-json -depth 100) }
+    if (-not $matchedConfigurations) {$matchedConfigurations = (Get-Content -path "$MigrationLogs\Configurations.json" | ConvertFrom-json -depth 100) }
     if (-not $MatchedAssetLayouts) {$MatchedAssetLayouts = (Get-Content -path "$MigrationLogs\AssetLayouts.json" | ConvertFrom-json -depth 100) }
     if (-not $MatchedAssetLayoutsFields) {$MatchedAssetLayoutsFields = (Get-Content -path "$MigrationLogs\AssetLayoutsFields.json" | ConvertFrom-json -depth 100) }
     if (-not $MatchedAssets) {$MatchedAssets = (Get-Content -path "$MigrationLogs\Assets.json" | ConvertFrom-json -depth 100) }
@@ -10,3 +10,4 @@
     if (-not $MatchedArticles) {$MatchedArticles = (Get-Content -path "$MigrationLogs\Articles.json" | ConvertFrom-json -depth 100) }
     if (-not $ManualActions) {$ManualActions = (Get-Content -path "$MigrationLogs\ManualActions.json" | ConvertFrom-json -depth 100) }
     if (-not $RelationsToCreate) {$RelationsToCreate = (Get-Content -path "$MigrationLogs\RelationsToCreate.json" | ConvertFrom-json -depth 100) }
+    if (-not $MatchedWebsites) {$MatchedWebsites = (Get-Content -path "$MigrationLogs\websites.json" | ConvertFrom-json -depth 100) }
