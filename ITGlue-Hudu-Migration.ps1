@@ -2545,6 +2545,7 @@ if ($true -eq $importChecklists){
 
 write-host "wrapup 9/10... Creating IPAM/Networks and Addresses if user-configured to do so... $($importChecklists)"
 if ($true -eq $ImportConfigInterfaces){
+    write-host "Calculations for addresses can take a while. Please be patient. If it looks like it's stuck, it's just crunching numbers from your $($MatchedConfigurations.count) possible configurations"
     $MatchedInterfaces = Invoke-HuduConfigurationIPAMSync -MatchedConfigurations $MatchedConfigurations
 }
 
