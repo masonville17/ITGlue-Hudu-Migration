@@ -36,6 +36,7 @@ You'll want to make sure your Hudu instance is prepared for migration and that t
 - Flexible Assets
 - Documents with folder structure
 - Passwords (with OTP codes)
+- IP Addresses / Networks
 - Document Links
 - Password folders (flattened to single-level)
 - ! Checklists / checklist templates (optional, JWT): imported as **Hudu procedures**; add users to Hudu first so assignees can be matched where possible

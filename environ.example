@@ -84,6 +84,7 @@ $ImportFlexibleAssets       = 1
 $ImportArticles             = 1
 $ImportPasswords            = 1
 $OptionalImageAnchorReplace = 1
+$ImportConfigInterfaces     = 1 # this creates IPAM addresses + networks in Hudu
 
 # If you want to have script wait for user interaction between steps. Select 1 for yes, 2 for noninteractive/no
 $NonInteractive             = 2
