@@ -1015,15 +1015,9 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Configurations.json")
     }
     if ($true -eq $ImportConfigInterfaces){
         Write-Host "Adding configuration interfaces to IPam now."
-        $ConfigGroups = $MatchedConfigurations | where-object {$null -ne $_.HuduID -and $null -ne $($_.HuduObject.Fields | where-object {$_.label -ieq "Primary IP"} | select-object -first 1).value} | Group-Object { $_.HuduObject.company_id } -AsHashTable -AsString
-        foreach ($companyId in $ConfigGroups.GetEnumerator().Name){
-            $configsForCompany = $ConfigGroups["$companyID"]
-            write-host "company ID $companyID has $($configsForCompany.count) configs with addresses"
-            $ensuredNetworks = New-Object System.Collections.Generic.List[object]
-            $EnsuredIPAddresses = New-Object System.Collections.Generic.List[object]
-            $obs = Collect-CompanyIpObservations -ConfigCollection $ConfigCollection
-
-        }
+        $MatchedInterfaces = Invoke-HuduConfigurationIPAMSync -MatchedConfigurations $MatchedConfigurations
+        $MatchedInterfaces | convertto-json -depth 99 | out-file "$MigrationLogs\NetworksAndInterfaces.json"
+        
     }
 
 

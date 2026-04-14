@@ -456,8 +456,8 @@ if ($InitType -eq 'Full') {
     ############################## Interfaces ##############################
     while ($ImportConfigInterfaces -notin (1,2)) {$ImportConfigInterfaces = Read-Host "Would you like to import configuration interfaces (IP Addresses) into IPam in Hudu?.`n 1) Yes`n 2) No, Skip Interfaces/Addresses`n(1/2)"}
     switch ($ImportConfigInterfaces) {
-        "2" {$ImportConfigInterfaces = $true}
-        "1" {$ImportConfigInterfaces = $false}
+        "1" {$ImportConfigInterfaces = $true}
+        "2" {$ImportConfigInterfaces = $false}
     }
 
 

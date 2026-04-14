@@ -87,6 +87,24 @@ function Get-NetworkChain {
 # --- helpers for extraction / normalization -----------------------------------
 function Get-AsArray { param($x) if ($null -eq $x) { @() } elseif ($x -is [System.Collections.IEnumerable] -and -not ($x -is [string])) { @($x) } else { ,$x } }
 
+function Get-HuduAssetFieldValue {
+  param(
+    [Parameter(Mandatory)]$Asset,
+    [Parameter(Mandatory)][string]$Label
+  )
+
+  if ($null -eq $Asset -or $null -eq $Asset.fields) { return $null }
+
+  $field = @(
+    $Asset.fields | Where-Object {
+      $_.label -ieq $Label -or $_.caption -ieq $Label
+    } | Select-Object -First 1
+  )[0]
+
+  if ($null -eq $field) { return $null }
+  $field.value
+}
+
 $__Ipv4Rx = '(?<!\d)(?:25[0-5]|2[0-4]\d|1?\d{1,2})(?:\.(?:25[0-5]|2[0-4]\d|1?\d{1,2})){3}(?!\d)'
 
 function Extract-IPv4sFromString {
@@ -177,11 +195,31 @@ function Collect-CompanyIpObservations {
 
   # pull from “primary_ip”, “default_gateway”, and “configuration_interfaces”
   foreach ($row in (Get-AsArray $ConfigCollection)) {
-    foreach ($ip in Extract-IPv4sFromString -Text ($($row.HuduObject.Fields | where-object {$_.label -ieq "Primary IP"} | select-object -first 1).value)) {
+    $primaryIpText = $row.primary_ip
+    if ([string]::IsNullOrWhiteSpace("$primaryIpText") -and $row.HuduObject) {
+      $primaryIpText = Get-HuduAssetFieldValue -Asset $row.HuduObject -Label 'Primary IP'
+    }
+
+    $defaultGatewayText = $row.default_gateway
+    if ([string]::IsNullOrWhiteSpace("$defaultGatewayText") -and $row.HuduObject) {
+      $defaultGatewayText = Get-HuduAssetFieldValue -Asset $row.HuduObject -Label 'Default Gateway'
+    }
+
+    $interfacesValue = $row.configuration_interfaces
+    if ($null -eq $interfacesValue -and $row.HuduObject) {
+      $interfacesValue = Get-HuduAssetFieldValue -Asset $row.HuduObject -Label 'Configuration Interfaces'
+    }
+
+    $hostnameValue = $row.hostname
+    if ([string]::IsNullOrWhiteSpace("$hostnameValue") -and $row.HuduObject) {
+      $hostnameValue = Get-HuduAssetFieldValue -Asset $row.HuduObject -Label 'Hostname'
+    }
+
+    foreach ($ip in Extract-IPv4sFromString -Text $primaryIpText) {
       if (-not $bucket.ContainsKey($ip)) { $bucket[$ip] = [pscustomobject]@{ IP=$ip; Gateways=@(); Hostnames=@(); VlanIds=@(); ObservedMasks=@() } }
     }
 
-    foreach ($gw in Extract-IPv4sFromString -Text ($row.default_gateway)) {
+    foreach ($gw in Extract-IPv4sFromString -Text $defaultGatewayText) {
       # try to associate gateway with peers in same /24 later; still record as an observed gateway
       if (-not $bucket.ContainsKey($gw)) { $bucket[$gw] = [pscustomobject]@{ IP=$gw; Gateways=@(); Hostnames=@(); VlanIds=@(); ObservedMasks=@() } }
       # mark it as a gateway (itself)
@@ -189,7 +227,7 @@ function Collect-CompanyIpObservations {
     }
 
     # interfaces (best source of vlan + prefix)
-    foreach ($iface in Extract-IPv4sFromInterfaces ) {
+    foreach ($iface in Extract-IPv4sFromInterfaces -InterfacesValue $interfacesValue) {
       $ip = $iface.IP
       if (-not $ip) { continue }
       if (-not $bucket.ContainsKey($ip)) { $bucket[$ip] = [pscustomobject]@{ IP=$ip; Gateways=@(); Hostnames=@(); VlanIds=@(); ObservedMasks=@() } }
@@ -204,9 +242,9 @@ function Collect-CompanyIpObservations {
       }
     }
 
-    if ($row.hostname) {
-      foreach ($ip in Extract-IPv4sFromString -Text ($row.primary_ip)) {
-        $bucket[$ip].Hostnames += "$($row.hostname)"
+    if ($hostnameValue) {
+      foreach ($ip in Extract-IPv4sFromString -Text $primaryIpText) {
+        $bucket[$ip].Hostnames += "$hostnameValue"
       }
     }
   }
@@ -227,6 +265,176 @@ function Collect-CompanyIpObservations {
   }
 
   $bucket.Values
+}
+
+function Invoke-HuduConfigurationIPAMSync {
+  param(
+    [Parameter(Mandatory)]$MatchedConfigurations
+  )
+  $IPAMResults = [System.Collections.ArrayList]@()
+
+  $configsWithCompanies = @(
+    $MatchedConfigurations | Where-Object {
+      $null -ne $_.HuduID -and
+      $null -ne $_.HuduObject -and
+      $null -ne $_.HuduObject.company_id
+    }
+  )
+
+  if ($configsWithCompanies.Count -eq 0) {
+    Write-Host "No matched configurations found for IPAM import."
+    return
+  }
+
+  $configGroups = $configsWithCompanies | Group-Object { "$($_.HuduObject.company_id)" } -AsHashTable -AsString
+
+  foreach ($companyIdKey in $configGroups.Keys) {
+    $configsForCompany = @($configGroups[$companyIdKey])
+    if ($configsForCompany.Count -eq 0) { continue }
+    $CompanyResults = @{}
+
+    [int]$companyId = $companyIdKey
+    Write-Host "Company ID $companyId has $($configsForCompany.Count) matched configurations for IPAM processing"
+
+    $configCollection = @(
+      foreach ($matchedConfig in $configsForCompany) {
+        $primaryIp = Get-HuduAssetFieldValue -Asset $matchedConfig.HuduObject -Label 'Primary IP'
+        $defaultGateway = Get-HuduAssetFieldValue -Asset $matchedConfig.HuduObject -Label 'Default Gateway'
+        $hostname = Get-HuduAssetFieldValue -Asset $matchedConfig.HuduObject -Label 'Hostname'
+
+        if ([string]::IsNullOrWhiteSpace("$primaryIp")) {
+          $primaryIp = $matchedConfig.ITGObject.attributes.'primary-ip'
+        }
+        if ([string]::IsNullOrWhiteSpace("$defaultGateway")) {
+          $defaultGateway = $matchedConfig.ITGObject.attributes.'default-gateway'
+        }
+        if ([string]::IsNullOrWhiteSpace("$hostname")) {
+          $hostname = $matchedConfig.ITGObject.attributes.hostname
+        }
+        if ([string]::IsNullOrWhiteSpace("$hostname")) {
+          $hostname = $matchedConfig.Name
+        }
+
+        [pscustomobject]@{
+          primary_ip               = $primaryIp
+          default_gateway          = $defaultGateway
+          hostname                 = $hostname
+          configuration_interfaces = $matchedConfig.ITGObject.attributes.'configuration-interfaces'
+          HuduObject               = $matchedConfig.HuduObject
+          HuduID                   = $matchedConfig.HuduID
+        }
+      }
+    )
+
+    $obs = @(Collect-CompanyIpObservations -ConfigCollection $configCollection)
+    if ($obs.Count -eq 0) {
+      Write-Host "No IP observations for company ID $companyId; skipping IPAM."
+      continue
+    }
+    $CompanyResults["Observations"]=$obs
+
+    $cidrs = @(Guess-NetworksFromObservations -Observations $obs)
+    Write-Host "$($cidrs.Count) observed CIDRs for company ID $companyId"
+    if ($cidrs.Count -gt 0) {
+      Write-Host "Inferred $($cidrs.Count) candidate networks for company ID ${companyId}: $($cidrs -join ', ')"
+    }
+
+
+    $ensuredNetworks = New-Object System.Collections.Generic.List[object]
+    $ensuredIpAddresses = New-Object System.Collections.Generic.List[object]
+
+    
+    if (($cidrs.Count -eq 0) -and ($obs.Count -gt 0)) {
+      $publicSingles = @(
+        $obs |
+          Where-Object { -not (Test-Rfc1918 -Ip $_.IP) } |
+          Select-Object -ExpandProperty IP -Unique
+      )
+
+      foreach ($publicIp in $publicSingles) {
+        $net = Ensure-HuduNetwork -CompanyId $companyId -Address $publicIp -Description 'Auto-imported from configurations (public host)'
+        if ($net) { $ensuredNetworks.Add($net) | Out-Null }
+      }
+    }
+
+    foreach ($cidr in $cidrs) {
+      Write-Host "Processing network for CIDR $cidr"
+      $net = Ensure-HuduNetwork -CompanyId $companyId -Address $cidr -Name $cidr -Description 'Auto-imported from configurations'
+      if ($net) { $ensuredNetworks.Add($net) | Out-Null }
+    }
+
+    $networkIndex = if ($ensuredNetworks.Count -gt 0) { @(Build-NetworkIndex -Networks @($ensuredNetworks | ForEach-Object { $_ })) } else { @() }
+    if ($networkIndex.Count -eq 0) {
+      Write-Host "No networks were created or matched for company ID $companyId; skipping IP creation."
+      continue
+    }
+
+    $obsByIp = @{}
+    foreach ($observation in $obs) {
+      if (-not $obsByIp.ContainsKey($observation.IP)) {
+        $obsByIp[$observation.IP] = $observation
+      }
+    }
+
+    $assetIdsByIp = @{}
+    foreach ($row in $configCollection) {
+      foreach ($ip in Extract-IPv4sFromString -Text $row.primary_ip) {
+        if (-not $assetIdsByIp.ContainsKey($ip) -and $row.HuduID) {
+          $assetIdsByIp[$ip] = [int]$row.HuduID
+        }
+      }
+    }
+
+    foreach ($ip in ($obsByIp.Keys | Sort-Object)) {
+      $net = Find-NetworkForIp -Ip $ip -NetworkIndex $networkIndex -CompanyId $companyId
+      if ($null -eq $net) { continue }
+
+      $ipParams = @{
+        Address     = $ip
+        CompanyId   = $companyId
+        NetworkId   = $net.id
+        Status      = 'active'
+        Description = 'Auto-imported from configurations'
+      }
+
+      $fqdn = @($obsByIp[$ip].Hostnames | Where-Object { $_ } | Select-Object -First 1)[0]
+      if ($fqdn) {
+        $ipParams.FQDN = $fqdn
+      }
+
+      if ($assetIdsByIp.ContainsKey($ip)) {
+        $ipParams.AssetId = $assetIdsByIp[$ip]
+      }
+
+      $ipObj = Ensure-HuduIPAddress @ipParams
+      if ($ipObj) { $ensuredIpAddresses.Add($ipObj) | Out-Null }
+    }
+
+    $vlanIds = @(
+      $obs |
+        ForEach-Object { $_.VlanIds } |
+        Where-Object { $_ -ge 1 -and $_ -le 4094 } |
+        Sort-Object -Unique
+    )
+    if ($vlanIds.Count -gt 0) {
+      $vlanRanges = Compress-IntsToRanges -Ints $vlanIds
+      $zone = Ensure-HuduVlanZone -CompanyId $companyId -ZoneName 'Imported VLANs' -Ranges $vlanRanges
+      foreach ($vlanId in $vlanIds) {
+        if ($zone) {
+          Ensure-HuduVlan -CompanyId $companyId -VlanId $vlanId -ZoneId $zone.id -Name "VLAN $vlanId" | Out-Null
+        } else {
+          Ensure-HuduVlan -CompanyId $companyId -VlanId $vlanId -Name "VLAN $vlanId" | Out-Null
+        }
+      }
+    }
+    $CompanyResults["Networks"]=$ensuredNetworks
+    $CompanyResults["Addresses"]=$ensuredIpAddresses
+    $CompanyResults["VLANIDs"]=$vlanIds
+    $IPAMResults.Add($CompanyResults)
+
+    Write-Host "Company ID $companyId IPAM summary: $($ensuredNetworks.Count) networks, $($ensuredIpAddresses.Count) IP addresses"
+  }
+  return $IPAMResults
 }
 
 function Guess-NetworksFromObservations {
@@ -433,9 +641,27 @@ function Ensure-HuduIPAddress {
   $existing = (Get-HuduIPAddresses -CompanyId $CompanyId) |  Where-Object { $_.address -eq $Address } | Select-Object -First 1
   if ($existing) { return $existing }
 
-  return $(New-HuduIPAddress -Address $Address -CompanyID $CompanyId -NetworkId $NetworkId `
-                    -FQDN $FQDN -Description $Description -Notes $Notes `
-                    -AssetID $AssetId -SkipDNSValidation:$SkipDNSValidation)
+  $newIpParams = @{
+    Address = $Address
+    CompanyID = $CompanyId
+    NetworkId = $NetworkId
+    SkipDNSValidation = $SkipDNSValidation
+  }
+
+  if ($PSBoundParameters.ContainsKey('FQDN') -and -not [string]::IsNullOrWhiteSpace($FQDN)) {
+    $newIpParams.FQDN = $FQDN
+  }
+  if ($PSBoundParameters.ContainsKey('Description') -and -not [string]::IsNullOrWhiteSpace($Description)) {
+    $newIpParams.Description = $Description
+  }
+  if ($PSBoundParameters.ContainsKey('Notes') -and -not [string]::IsNullOrWhiteSpace($Notes)) {
+    $newIpParams.Notes = $Notes
+  }
+  if ($PSBoundParameters.ContainsKey('AssetId') -and $AssetId -gt 0) {
+    $newIpParams.AssetID = $AssetId
+  }
+
+  return $(New-HuduIPAddress @newIpParams)
 }
 function Ensure-HuduNetwork {
   param(
