@@ -47,15 +47,16 @@ $ImportFlexibleAssets       = 1
 $ImportArticles             = 1
 $ImportPasswords            = 1
 $NonInteractive             = 2
-$ScopedMigration            = 2
+$ScopedMigration            = 1
+$ImportConfigInterfaces     = 1
 # prescoped Companies
-$Prescoped = @(
-905
-859
-1387
-1152
-20
-1231
-932
-)
+# $Prescoped = @(
+# 905
+# 859
+# 1387
+# 1152
+# 20
+# 1231
+# 932
+# )
 . .\ITGlue-Hudu-Migration.ps1
