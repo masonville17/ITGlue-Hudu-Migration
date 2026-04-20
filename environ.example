@@ -116,5 +116,5 @@ $allowSettingFlagsAndTypes  = $false
 
 $LocImportAssetLayoutName = "Locations" # name for locations layout
 $ConImportAssetLayoutName = "People" # name for contacts/people layout
-$IncludeIgnoredFirstArticleDirectory = $false # this is the usual default behavior
+$IncludeIgnoredFirstArticleDirectory = $true # set this to 'false' to exclude the root level article folders (previously excluding these top level folders was expected behavior)
 . .\ITGlue-Hudu-Migration.ps1
