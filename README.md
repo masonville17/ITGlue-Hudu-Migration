@@ -104,14 +104,15 @@ Make sure the API Key you're using has password access, and that all passwords h
 1. **Initiate ITGlue Export.** You will need to log into ITGlue and perform a full export of your instance. To do so, you'll need to log in as a Super Admin and go to Admin>Export. You can choose to run an export with or without activity logs (activity logs are not needed for the migration and having them selected can make the export take longer). ITGlue will email you when the export is completed (normally takes <30 minutes). 
 <img width="750"  alt="IT_Glue_Migration_Guide" src="https://github.com/user-attachments/assets/e5b2c49d-6ae5-4960-844e-5f28390de665" />
 
-***NOTE***
+### ***NOTE- If presented with a checkbox asking whether or not to include passwords, be sure to do so!***
 
-If presented with a checkbox asking whether or not to include passwords, be sure to do so!
 <img width="750" alt="include-passwords" src="https://github.com/user-attachments/assets/e75f9966-8eee-4696-b683-e8acbf150b17" />
 
 2. **Download ITGlue Export.** Once the export is complete, navigate back to Admin>Export in ITGlue, download the .zip file, and save it to a safe and secure place (we generally recommend somewhere easy like C:\temp\export). ***Do not unzip the files yet***
 
 3. **Unzipping the files.** Once your data is saved to a good place, it's time to extract the files. It's highly recommended to use a ZIP tool such as 7-zip as the ITGlue export can sometimes name files in a way that Windows Explorer does not natively handle and can cause file names to have strange characters (thus causing some KB articles to not migrate over correctly).
+
+(don't manipulate or change these files after extraction)
 
 ## API Keys
 
@@ -151,6 +152,8 @@ You can [download newest powershell release here](https://github.com/powershell/
 > - The script will, for the most part, mirror Flexible Assets in ITGlue. The script ***will not merge asset layouts from ITGlue into ones in Hudu***. Because of this, the script prompts you to create a prefix for asset layouts coming from ITGlue. It's highly recommended to set up a prefix in the script (such as ITG-) as if there is an existing asset layout in Hudu, it will cause a collision and those asset layouts will be skipped.
 > - The script will prompt you on what data types you would like to move (you don't have to migrate everything if you don't want to)
 > - The script will prompt you to run the script unattended--it can take several hours for the script to run start-to-finish, so unattended mode allows you to set it to run autonomously. If you choose not to run unattended, it _does not_ time out, so you can "continue" the script at any time
+> - By default, the lowest-level folders will be included in your articles migration. Previously, this was not the default behavior. To change this, you can set this variable to false `$IncludeIgnoredFirstArticleDirectory = $false` in your environment file
+> - Your internal docs, by default will go into your Global KB. This is usually how to do things in Hudu. However, if you want to migrate internal documents into your internal company instead, set this variable to true `PlaceInternalDocsInInternalCompany = $true` in your environment file (inside the settings hashtable).
 
 Settings will get saved by default to %APPDATA%\HuduMigration. Settings that will be saved include API Keys, URLs, Prefixes, and so on. You can modify the settings.json file directly as long as you use expected values.
 
