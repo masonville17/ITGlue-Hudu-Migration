@@ -25,19 +25,56 @@ function Get-RelatedToDoc {
     }
 
     $baseUri = $ITGlue_Base_URI.TrimEnd('/')
-    $uri = "$baseUri/organizations/$OrganizationId/relationships/documents/$DocID"
+    $candidateUris = @(
+        "$baseUri/organizations/$OrganizationId/relationships/documents/$DocID?include=related_items",
+        "$baseUri/organizations/$OrganizationId/documents/$DocID?include=related_items",
+        "$baseUri/documents/$DocID?include=related_items",
+        "$baseUri/organizations/$OrganizationId/relationships/documents/$DocID"
+    ) | Select-Object -Unique
 
-    try {
-        Invoke-RestMethod -Method GET -Uri $uri -Headers $headers
-    }
-    catch {
-        Write-Warning "Failed to retrieve ITGlue document $DocID for organization $OrganizationId"
-        if ($_.ErrorDetails.Message) {
-            Write-Warning $_.ErrorDetails.Message
-        } else {
-            Write-Warning $_.Exception.Message
+    $LastError = $null
+    foreach ($uri in $candidateUris) {
+        try {
+            $Response = Invoke-RestMethod -Method GET -Uri $uri -Headers $headers
+            if ($Response) {
+                return $Response
+            }
+        }
+        catch {
+            $LastError = $_
         }
     }
+
+    Write-Warning "Failed to retrieve ITGlue document $DocID for organization $OrganizationId"
+    if ($LastError) {
+        if ($LastError.ErrorDetails.Message) {
+            Write-Warning $LastError.ErrorDetails.Message
+        } else {
+            Write-Warning $LastError.Exception.Message
+        }
+    }
+}
+function Add-UnknownITGlueRelationType {
+    param(
+        [string]$TypeName
+    )
+
+    $TypeName = [string]($TypeName ?? '').Trim()
+    if ([string]::IsNullOrWhiteSpace($TypeName)) {
+        return
+    }
+
+    if (-not $script:UnknownITGlueRelationTypeCounts) {
+        $script:UnknownITGlueRelationTypeCounts = @{}
+    }
+
+    if ($script:UnknownITGlueRelationTypeCounts.ContainsKey($TypeName)) {
+        $script:UnknownITGlueRelationTypeCounts[$TypeName]++
+        return
+    }
+
+    $script:UnknownITGlueRelationTypeCounts[$TypeName] = 1
+    Write-Warning "Encountered unsupported ITGlue relation type '$TypeName'"
 }
 function Convert-ITGlueTypeToRelationAssetType {
     param(
@@ -55,7 +92,10 @@ function Convert-ITGlueTypeToRelationAssetType {
         '^companies$' { return 'organization' }
         '^domains?$' { return 'domain' }
         '^websites?$' { return 'domain' }
-        default { return $null }
+        default {
+            Add-UnknownITGlueRelationType -TypeName $TypeName
+            return $null
+        }
     }
 }
 function Resolve-ITGlueRelationReference {
@@ -189,6 +229,77 @@ function Get-ArticleLookupInfo {
         OrganizationId = [long]$ResolvedOrganizationId
     }
 }
+function Test-ITGlueResponseHasRelationData {
+    param(
+        $Response
+    )
+
+    if (-not $Response) {
+        return $false
+    }
+
+    if (@($Response.included).Count -gt 0) {
+        return $true
+    }
+
+    if (@($Response.data.relationships.'related-items'.data).Count -gt 0) {
+        return $true
+    }
+
+    return $false
+}
+function Get-PasswordDocumentLookupInfo {
+    param(
+        $Password
+    )
+
+    if (-not $Password -or -not $Password.ITGObject) {
+        return $null
+    }
+
+    $ParentUrl = [string]$Password.ITGObject.attributes.'parent-url'
+    $ResourceType = [string]$Password.ITGObject.attributes.'resource-type'
+    $ResourceId = Get-SingleRelationValue -Value @(
+        $Password.ITGObject.attributes.'resource-id'
+        if ($ParentUrl -match '/docs/(\d+)') { $Matches[1] }
+    ) -Label 'Password Document ITGID'
+
+    if (-not $ResourceId) {
+        return $null
+    }
+
+    if (($ResourceType -and $ResourceType -notmatch '^documents?$') -and ($ParentUrl -notmatch '/docs/')) {
+        return $null
+    }
+
+    return [pscustomobject]@{
+        PasswordItgId = [string]$Password.ITGID
+        DocumentItgId = [string]$ResourceId
+    }
+}
+function New-HuduRelationPair {
+    param(
+        [string]$LeftType,
+        [int]$LeftId,
+        [string]$RightType,
+        [int]$RightId
+    )
+
+    @(
+        [pscustomobject]@{
+            FromableType = $LeftType
+            FromableID   = $LeftId
+            ToableType   = $RightType
+            ToableID     = $RightId
+        }
+        [pscustomobject]@{
+            FromableType = $RightType
+            FromableID   = $RightId
+            ToableType   = $LeftType
+            ToableID     = $LeftId
+        }
+    )
+}
 function Get-HuduRelationObject {
     param(
         $ITGlueSourceObjects
@@ -230,6 +341,34 @@ function Get-HuduRelationObject {
 
     return $NewHuduRelations
 }
+function Get-PasswordDocumentRelationObject {
+    param(
+        $MatchedPasswords
+    )
+
+    foreach ($Password in $MatchedPasswords) {
+        $Lookup = Get-PasswordDocumentLookupInfo -Password $Password
+        if (-not $Lookup) { continue }
+
+        if (-not $MatchedPasswordMap.ContainsKey($Lookup.PasswordItgId)) { continue }
+        if (-not $MatchedArticleMap.ContainsKey($Lookup.DocumentItgId)) { continue }
+
+        $PasswordHuduObject = $MatchedPasswordMap[$Lookup.PasswordItgId].HuduObject
+        $DocumentHuduObject = $MatchedArticleMap[$Lookup.DocumentItgId].HuduObject
+        if (-not $PasswordHuduObject -or -not $DocumentHuduObject) { continue }
+
+        $PasswordType = Get-SingleRelationValue -Value 'AssetPassword' -Label 'PasswordType'
+        $PasswordId = Get-SingleRelationValue -Value $PasswordHuduObject.id -Label 'PasswordID'
+        $DocumentType = Get-SingleRelationValue -Value 'Article' -Label 'DocumentType'
+        $DocumentId = Get-SingleRelationValue -Value $DocumentHuduObject.id -Label 'DocumentID'
+
+        if (-not $PasswordType -or -not $PasswordId -or -not $DocumentType -or -not $DocumentId) {
+            continue
+        }
+
+        New-HuduRelationPair -LeftType $PasswordType -LeftId ([int]$PasswordId) -RightType $DocumentType -RightId ([int]$DocumentId)
+    }
+}
 
 
 if (-not $MatchedAssets) {$MatchedAssets = (Get-Content -path "$MigrationLogs\Assets.json" | ConvertFrom-json -depth 100) }
@@ -244,19 +383,19 @@ if (-not $MatchedWebsites) {$MatchedWebsites = (Get-Content -path "$MigrationLog
 
 write-host "refreshing $($MatchedAssets.count) assets"
 $FreshITGAssets= $MatchedAssets |% { Get-ITGlueFlexibleAssets -id $_.ITGObject.id -include related_items}
-$RelatedAssets = $FreshITGAssets |? {$_.data.relationships.'related-items'.data}
+$RelatedAssets = $FreshITGAssets | Where-Object { Test-ITGlueResponseHasRelationData -Response $_ }
 
 write-host "refreshing $($MatchedConfigurations.count) configs"
 $FreshConfigurations = $MatchedConfigurations | % {Get-ITGlueConfigurations -id $_.itgobject.id -include related_items}
-$RelatedConfigurations = $FreshConfigurations |? {$_.data.relationships.'related-items'.data}
+$RelatedConfigurations = $FreshConfigurations | Where-Object { Test-ITGlueResponseHasRelationData -Response $_ }
 
 write-host "refreshing $($MatchedPasswords.count) passwords"
 $FreshPasswords = $MatchedPasswords | % {Get-ITGluePasswords -id $_.itgobject.id -include related_items}
-$RelatedPasswords = $FreshPasswords |? {$_.data.relationships.'related-items'.data}
+$RelatedPasswords = $FreshPasswords | Where-Object { Test-ITGlueResponseHasRelationData -Response $_ }
 
 write-host "refreshing $($MatchedContacts.count) contacts"
 $FreshContacts = $MatchedContacts | % {Get-ITGlueContacts -id $_.ITGObject.id -include related_items}
-$RelatedContacts = $FreshContacts |? {$_.data.relationships.'related-items'.data}
+$RelatedContacts = $FreshContacts | Where-Object { Test-ITGlueResponseHasRelationData -Response $_ }
 
 write-host "refreshing $($MatchedArticles.count) articles"
 $FreshDocuments = $MatchedArticles | ForEach-Object {
@@ -265,9 +404,7 @@ $FreshDocuments = $MatchedArticles | ForEach-Object {
         Get-RelatedToDoc -DocID $ArticleLookup.DocID -OrganizationId $ArticleLookup.OrganizationId -ITGKey $ITGKey -ITGlue_Base_URI $settings.ITGAPIEndpoint
     }
 }
-$RelatedDocuments = $FreshDocuments | Where-Object {
-    $_.data.relationships.'related-items'.data
-}
+$RelatedDocuments = $FreshDocuments | Where-Object { Test-ITGlueResponseHasRelationData -Response $_ }
 
 write-host "mapping configs"
 $MatchedConfigurationMap = @{}
@@ -306,6 +443,7 @@ $ContactRelationsToCreate = Get-HuduRelationObject -ITGlueSourceObjects $Related
 $ConfigurationRelationsToCreate = Get-HuduRelationObject -ITGlueSourceObjects $RelatedConfigurations
 $AssetRelationsToCreate = Get-HuduRelationObject -ITGlueSourceObjects $RelatedAssets
 $PasswordRelationsToCreate = Get-HuduRelationObject -ITGlueSourceObjects $RelatedPasswords
+$PasswordDocumentRelationsToCreate = Get-PasswordDocumentRelationObject -MatchedPasswords $MatchedPasswords
 
 
 
@@ -314,6 +452,7 @@ $AllRelationsToCreate =
     @($DocumentRelationsToCreate) +
     @($ContactRelationsToCreate) +
     @($PasswordRelationsToCreate) +
+    @($PasswordDocumentRelationsToCreate) +
     @($ConfigurationRelationsToCreate) |
     Where-Object { $_ } |
     Sort-Object FromableType, FromableID, ToableType, ToableID -Unique
@@ -329,3 +468,17 @@ $NewRelationsCreated = @(
 
 $AllRelationsToCreate | ConvertTo-Json -Depth 75 | Out-File (Join-Path $settings.MigrationLogs 'relations-to-create.json')
 $NewRelationsCreated | ConvertTo-Json -Depth 75 | Out-File (Join-Path $settings.MigrationLogs 'relations-created.json')
+
+if ($script:UnknownITGlueRelationTypeCounts -and $script:UnknownITGlueRelationTypeCounts.Count -gt 0) {
+    $UnknownRelationTypes = $script:UnknownITGlueRelationTypeCounts.GetEnumerator() |
+        Sort-Object Name |
+        ForEach-Object {
+            [pscustomobject]@{
+                TypeName = $_.Name
+                Count    = $_.Value
+            }
+        }
+
+    $UnknownRelationTypes | ConvertTo-Json -Depth 10 | Out-File (Join-Path $settings.MigrationLogs 'unknown-relation-types.json')
+    Write-Warning "Encountered $($UnknownRelationTypes.Count) unsupported ITGlue relation type(s). Details saved to unknown-relation-types.json"
+}

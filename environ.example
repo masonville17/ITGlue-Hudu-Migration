@@ -35,7 +35,7 @@ $settings = @{
     PlaceInternalDocsInInternalCompany = $false
 
     # Central folder KB articles when using Global KB for internal-company documents
-    GlobalKBFolder          = "y"
+    GlobalKBFolder          = "n"
 
     # Configs asset layout in Hudu Naming Prefix
     ConPromptPrefix         = ""
