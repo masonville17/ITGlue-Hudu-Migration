@@ -24,9 +24,9 @@ foreach ($folder in @($debugFolder, $errors_folder, $logs_folder, $settings_fold
 
 $InitType = "full"
 $settings = @{
-    HuduBaseDomain          = "https://changeme.huducloud.com"
-    ITGURL                  = "https://changeme.itglue.com"
-    ITGAPIEndpoint          = "https://api.itglue.com"
+    HuduBaseDomain          = "https://changeme.huducloud.com" # Note- Keep this URL Format. No trailing slashes, please
+    ITGURL                  = "https://changeme.itglue.com"    # Note- Keep this URL Format. No trailing slashes, please
+    ITGAPIEndpoint          = "https://api.itglue.com"         # Note- Keep this URL Format. No trailing slashes, please
     customBrandedDomain     = "n"
     ITGCustomDomains        = ""
     InternalCompany         = "changeme inc."
