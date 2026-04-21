@@ -70,6 +70,7 @@ $FontAwesomeUpgrade = Get-FontAwesomeMap
 . $PSScriptRoot\Public\Get-ITGFieldPopulated.ps1
 . $PSScriptRoot\Public\JWT-Auth.ps1
 . $PSScriptRoot\Public\NetworkInformation.ps1
+. $PSScriptRoot\Public\PreFlightTests.ps1
 
 if (-not (Get-Command -Name Get-UserFlagSetup -ErrorAction SilentlyContinue)) { . $PSScriptRoot\Public\Add-OptionalFlags.ps1 }
 
@@ -147,6 +148,17 @@ $CurrentVersion =  Set-ExternalModulesInitialized `
         -DisallowedVersions @([version]"2.37.0") `
         -HuduBaseURL $($hudubaseurl ?? $settings.HuduBaseDomain ?? $null) `
         -HuduAPIKey $($huduapikey ?? $settings.HuduApiKey ?? $null)
+
+write-host "Checking your API keys to make sure they are scoped for password access"
+$itglueScopeOk = Test-ITGlueAPIKeyPasswordScope
+$huduScopeOk = Test-HuduAPIKeyScope
+write-host "Hudu API Key Scope for Password Access: $huduScopeOk"
+write-host "IT Glue API Key Scope for Password Access: $itglueScopeOk"
+
+if (-not $true -eq $itglueScopeOk -or -not $true -eq $huduScopeOk) {
+    Write-Host "One or both of your API keys do not have the required scope for password access. Please update the key scopes and try again." -ForegroundColor Red
+    exit 1
+}
 
 
 if ($true -eq $allowSettingFlagsAndTypes){. .\Public\Get-UserFlagPreferences.ps1} else {$allowSettingFlagsAndTypes = $false; $flagPasswordsByType = $false; $ObjectFlagMap = @{};}

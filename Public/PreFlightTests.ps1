@@ -1,4 +1,4 @@
-function TestHuduAPIKeyScope {
+function Test-HuduAPIKeyScope {
     [CmdletBinding()]
     param(
         [string]$HuduBaseUrl = $(Get-HuduBaseURL),
@@ -99,7 +99,7 @@ function TestHuduAPIKeyScope {
     return $result.Success
 }
 
-function TestITGlueAPIKeyPasswordScope {
+function Test-ITGlueAPIKeyPasswordScope {
     [CmdletBinding()]
     param(
         [string]$ITGlueBaseUrl = $(Get-ITGlueBaseURI),
