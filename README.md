@@ -198,39 +198,6 @@ Any other org types will migrate as usual, but this one org type will be central
 
 When you opt in during the migration, checklists and templates are imported as **Hudu procedures** using a **JWT** from ITGlue (see the **!** items at the top of this document under **What the script does migrate**). Tag-style relations to checklists from other assets are still not migrated—plan for manual cleanup where needed.
 
-## 4. Custom-Mapping for Target Layouts (ADVANCED)
-
-If you have an existing Hudu instance and you like the layouts that you have created there, you can accomplish this task in a few ways. You can either:
-
-### A. Migrate a certain type of object directly to your desired Hudu Asset Layout [coming soon]
-
-This allows you to go from any flexible asset layout, configuration type, location/contact to whichever asset layout(s) you want. To do this directly, you can answer the startup question to allow for custom mapping (or set $settings.AllowForCustomMapping = $true in your environment file). 
-
-for each would-be-created asset layout in Hudu, you are instead prompted:
-1. do you want to allow script to create layout ($true)
-2. do you wish to instead map this to an existing Hudu layout ($false).
-
-If you choose to map directly, you will then be prompted for a target asset layout.
-
-you'll select the number corresponding to where you want this asset type to go.
-
-<img width="555" height="656" alt="image" src="https://github.com/user-attachments/assets/005e4cf3-f746-4e0b-84d6-4eb58019a8fe" />
-
-After selecting, a few files will be generated. One of them is a reference and one of them is a form that you'll fill out.
-Much like the after-the-fact transfer of assets to new layout, you'll have a source-fields.json file that is a reference for which fields we can grab information from. The other, named after your desired target layout will be in the same folder. These both will be in the project directory if you don't use an environment file, otherwise it will be in your chosen 'debug' folder. 
-
-Once you fill out your form and hit enter in your active powershell session, the form will be loaded and the process will begin. SMOOSH fields are merged, constants are populated, addressdata is filled, fields are stripped of HTML per your choosing. 
-
-<img width="161" height="636" alt="image" src="https://github.com/user-attachments/assets/928139f5-13ca-4d3f-aabb-dbc07cb7a9a8" />
-
-For more information on the rest of the process, please see [Switching layouts guide](./SwitchingLayouts.md)
-
-<img width="1266" height="466" alt="image" src="https://github.com/user-attachments/assets/d49d4ab8-11ee-4df1-b89e-15713a17b026" />
-
-### B. Migrate as normal, then after completed, migrate assets from one layout to another
-
-To migrate assets to a different layout after your ITGlue migration completes, you can simply run this post-run script,
-
 . .\Move-AssetsToNewLayout
 
 You'll be prompted for a source layout to get assets from and a target/destination layout.
@@ -255,11 +222,10 @@ These are used only when the image extension was not properly retained in the ex
 **The original blog post may still be relevant in some cases but is mostly outdated.** See [this link instead](https://mspbook.mspgeek.org/books/hudu-scripts-in-progress/page/itglue-to-hudu-migration) or [this other link here](https://demort.hosteddocs.io/shared_article/7BKhGktLGN1FEDSVEkh1bLpF)
 
 
-
 # Known Issues
  - Password Relations to Articles, Password Folders, and SSL Certificates are not currently included
 
-Password relations are only available from ITGlue when querying the API directly for each password individually. Since this will increase the runtime of the script by hours or days potentially we'll be making a script to run at the end which will loop through passwords and update the relations at that time. For right now relationships between Passwords and any entity that is not available in the API (Articles, and SSL Certificates) are completely invisible to this migration script.
+Password relations are only available from ITGlue when querying the API directly for each password individually. Since this will increase the runtime of the script by hours or days potentially we have a script to run at the end which will loop through passwords and update the relations at that time. For right now relationships between Passwords and any entity that is not available in the API (SSL Certificates) are completely invisible to this migration script.
 
 # Disclaimer
 
@@ -268,10 +234,10 @@ This migration tool (PowerShell scripts, packaged executable, and all other item
 By using this tool, you acknowledge that you do so at your own risk. The authors and Hudu Technologies shall not be liable for any damages, losses, or issues that may arise from its use, including but not limited to data loss, system failures, or security breaches. Always review the code thoroughly and test it in a safe environment before deploying it in a production setting.
 
 # Release Notes
-## Get-MissingRelations.ps1 added
-This script should be run at the very end, with the Matched* variables existing from the migration, it'll loop through matched Configurations and Assets (Configurations and Flexible Assets in ITGlue) and pull the latest relations
+## Get-MissingRelations.ps1 updated to include from-document, from locations/contacts asssets, and including both related items specifications from ITglue
+This script is run at the very end but is safe to run twice, with the Matched* variables existing from the migration, it'll loop through matched Configurations and Assets (Configurations and Flexible Assets in ITGlue) and pull the latest relations
 
-It will save two variables `$ConfigurationRelationsToCreate` and `$AssetRelationsToCreate` that can be used to build relations in Hudu using the `New-HuduRelation` command. Duplicate relations won't be created as it'll throw an error so it's safe to re-run.
+It will save variable: `$RelationsToCreate` that can be used to build relations in Hudu using the `New-HuduRelation` command. Duplicate relations won't be created as it'll throw an error so it's safe to re-run.
 
 ## Version 2.x - Well tested but still beta version
 This version of the script brings an interactive migration process, settings will get saved by default to `%APPDATA%\HuduMigration` although they can be moved and then re-imported from a different path after creation.
