@@ -19,3 +19,5 @@ tempdownloads
 tempdownloads*
 tempdownloads\*
 relations-scoped.ps1
+migrationrun.log
+migrationrun.ps1
