@@ -1,3 +1,10 @@
+if ($MyInvocation.InvocationName -eq '.') {
+    Write-Host "Script was dot-sourced" -ForegroundColor Green
+} else {
+    Write-Host "Script was executed without dot-sourcing, this is the recommended method of running the script to ensure settings are retained in the session" -ForegroundColor Yellow; write-warning "exiting to prevent issues later on, please dot-source the script by running `. .\ITGlue-Hudu-Migration.ps1` from powershell 7 or using the provided ITGlue-Hudu-Migration.exe frontend.";
+    exit 1
+}
+
 if (-not (Get-Command -Name Get-EnsuredPath -ErrorAction SilentlyContinue)) { . $PSScriptRoot\Public\Init-OptionsAndLogs.ps1 }
 $ErroredItemsFolder = $(Get-EnsuredPath -path $(join-path $(Resolve-Path .).path "debug"))
 
@@ -11,6 +18,7 @@ if ((get-host).version.major -ne 7) {
     Write-Host "Powershell 7 Required" -foregroundcolor Red
     exit 1
 }
+
 ############################### Functions ###############################
 # Import ImageMagick for Invoke-ImageTest Function (Disabled)
  . $PSScriptRoot\Private\Initialize-ImageMagik.ps1
