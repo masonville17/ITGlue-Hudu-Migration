@@ -155,6 +155,393 @@ function Get-SimilaritySafe { param([string]$A,[string]$B)
     return $score
 }
 
+function Format-ManualActionsReport {
+    param(
+        [System.Collections.ArrayList]$ManualActions,
+        [string]$OutputPath = "ManualActions.html",
+        [string]$Summary
+    )
+
+    function ConvertTo-ReportHtml {
+        param([AllowNull()]$Value)
+
+        if ($null -eq $Value) { return "" }
+
+        $text = if ($Value -is [string]) {
+            $Value
+        } elseif ($Value -is [System.Collections.IEnumerable] -and $Value -isnot [string]) {
+            @($Value) -join ", "
+        } else {
+            try {
+                $Value | ConvertTo-Json -Depth 8 -Compress -ErrorAction Stop
+            } catch {
+                [string]$Value
+            }
+        }
+
+        return [System.Net.WebUtility]::HtmlEncode([string]$text)
+    }
+
+    function ConvertTo-AbsoluteReportUrl {
+        param([AllowNull()][string]$Url)
+
+        if ([string]::IsNullOrWhiteSpace($Url)) { return "" }
+        if ($Url -match '^https?://') { return $Url }
+        if ([string]::IsNullOrWhiteSpace($HuduBaseDomain)) { return $Url }
+
+        return "$($HuduBaseDomain.TrimEnd('/'))/$($Url.TrimStart('/'))"
+    }
+
+    function New-ReportLink {
+        param(
+            [AllowNull()][string]$Url,
+            [string]$Label = "Open"
+        )
+
+        if ([string]::IsNullOrWhiteSpace($Url)) {
+            return '<span class="muted">Not available</span>'
+        }
+
+        $safeUrl = ConvertTo-ReportHtml $Url
+        $safeLabel = ConvertTo-ReportHtml $Label
+        return "<a href=""$safeUrl"" target=""_blank"" rel=""noopener noreferrer"">$safeLabel</a>"
+    }
+
+    $manualActionItems = @($ManualActions | Where-Object { $null -ne $_ })
+
+    foreach ($item in $manualActionItems) {
+        $absoluteHuduUrl = ConvertTo-AbsoluteReportUrl $item.Hudu_URL
+        $huduUrlProperty = $item.PSObject.Properties["Hudu_URL"]
+
+        if ($huduUrlProperty) {
+            $huduUrlProperty.Value = $absoluteHuduUrl
+        } else {
+            $item | Add-Member -MemberType NoteProperty -Name Hudu_URL -Value $absoluteHuduUrl
+        }
+    }
+
+    $totalActions = $manualActionItems.Count
+    $groupedItems = @(
+        $manualActionItems |
+            Group-Object {
+                $huduId = if ($_.huduid) { $_.huduid } else { "no-id" }
+                $huduUrl = if ($_.Hudu_URL) { $_.Hudu_URL } else { "no-url" }
+                "$huduId|$huduUrl|$($_.Document_Name)"
+            } |
+            Sort-Object {
+                $first = $_.Group | Select-Object -First 1
+                "$($first.Company_name)|$($first.Asset_Type)|$($first.Document_Name)"
+            }
+    )
+    $recordCount = $groupedItems.Count
+    $companyCount = @($manualActionItems | Where-Object { -not [string]::IsNullOrWhiteSpace($_.Company_name) } | Select-Object -ExpandProperty Company_name -Unique).Count
+    $typeCount = @($manualActionItems | Where-Object { -not [string]::IsNullOrWhiteSpace($_.Asset_Type) } | Select-Object -ExpandProperty Asset_Type -Unique).Count
+    $generatedAt = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $summaryHtml = ConvertTo-ReportHtml $Summary
+
+    $builder = [System.Text.StringBuilder]::new()
+    [void]$builder.AppendLine('<!doctype html>')
+    [void]$builder.AppendLine('<html lang="en">')
+    [void]$builder.AppendLine('<head>')
+    [void]$builder.AppendLine('  <meta charset="utf-8">')
+    [void]$builder.AppendLine('  <meta name="viewport" content="width=device-width, initial-scale=1">')
+    [void]$builder.AppendLine('  <title>Manual Actions Required Report</title>')
+    [void]$builder.AppendLine(@'
+  <style>
+    :root {
+      color-scheme: light;
+      --page: #f6f8fb;
+      --surface: #ffffff;
+      --surface-alt: #f0f4f8;
+      --border: #d8e0ea;
+      --text: #1e2a35;
+      --muted: #5d6b7a;
+      --heading: #102232;
+      --accent: #0f766e;
+      --accent-strong: #134e4a;
+      --warning: #b45309;
+      --link: #1d4ed8;
+      --shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--text);
+      font-family: "Segoe UI", Roboto, Arial, sans-serif;
+      line-height: 1.45;
+    }
+
+    .shell {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 48px;
+    }
+
+    header {
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 18px;
+    }
+
+    h1, h2, h3 { color: var(--heading); margin: 0; }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+    }
+
+    .subtitle {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 12px;
+      margin: 20px 0 24px;
+    }
+
+    .stat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .stat-label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .stat-value {
+      display: block;
+      margin-top: 4px;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--accent-strong);
+    }
+
+    .summary {
+      background: #172033;
+      color: #ecf2f8;
+      border-radius: 8px;
+      padding: 18px;
+      overflow-x: auto;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .summary h2 {
+      color: #ffffff;
+      font-size: 17px;
+      margin-bottom: 10px;
+    }
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      font: 13px/1.5 Consolas, "Liberation Mono", monospace;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      margin: 28px 0 12px;
+    }
+
+    .section-title h2 { font-size: 20px; }
+
+    .muted { color: var(--muted); }
+
+    .empty-state {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      color: var(--muted);
+      box-shadow: var(--shadow);
+    }
+
+    .action-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .action-header {
+      padding: 16px 18px;
+      border-left: 5px solid var(--accent);
+      background: var(--surface);
+    }
+
+    .action-header h3 {
+      font-size: 17px;
+      margin-bottom: 10px;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 8px 18px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .meta-grid strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    a {
+      color: var(--link);
+      text-decoration: none;
+      overflow-wrap: anywhere;
+    }
+
+    a:hover { text-decoration: underline; }
+
+    .table-wrap { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 13px;
+    }
+
+    th {
+      background: var(--surface-alt);
+      color: var(--heading);
+      text-align: left;
+      font-weight: 700;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 12px;
+    }
+
+    td {
+      vertical-align: top;
+      border-bottom: 1px solid var(--border);
+      padding: 10px 12px;
+      overflow-wrap: anywhere;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    .field-col { width: 18%; }
+    .notes-col { width: 26%; }
+    .action-col { width: 26%; }
+    .data-col { width: 30%; }
+
+    .badge {
+      display: inline-block;
+      border: 1px solid rgba(180, 83, 9, .28);
+      background: #fff7ed;
+      color: var(--warning);
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    @media (max-width: 760px) {
+      .shell { width: min(100% - 20px, 1180px); padding-top: 20px; }
+      h1 { font-size: 23px; }
+      .summary { padding: 14px; }
+      .action-header { padding: 14px; }
+      table { min-width: 760px; }
+    }
+  </style>
+'@)
+    [void]$builder.AppendLine('</head>')
+    [void]$builder.AppendLine('<body>')
+    [void]$builder.AppendLine('  <main class="shell">')
+    [void]$builder.AppendLine('    <header>')
+    [void]$builder.AppendLine('      <h1>Manual Actions Required Report</h1>')
+    [void]$builder.AppendLine("      <div class=""subtitle"">Generated $generatedAt. Review these items after the migration completes.</div>")
+    [void]$builder.AppendLine('    </header>')
+    [void]$builder.AppendLine('    <section class="stats" aria-label="Manual action totals">')
+    [void]$builder.AppendLine("      <div class=""stat""><span class=""stat-label"">Manual Actions</span><span class=""stat-value"">$totalActions</span></div>")
+    [void]$builder.AppendLine("      <div class=""stat""><span class=""stat-label"">Impacted Records</span><span class=""stat-value"">$recordCount</span></div>")
+    [void]$builder.AppendLine("      <div class=""stat""><span class=""stat-label"">Companies</span><span class=""stat-value"">$companyCount</span></div>")
+    [void]$builder.AppendLine("      <div class=""stat""><span class=""stat-label"">Item Types</span><span class=""stat-value"">$typeCount</span></div>")
+    [void]$builder.AppendLine('    </section>')
+    [void]$builder.AppendLine('    <section class="summary">')
+    [void]$builder.AppendLine('      <h2>Migration Summary</h2>')
+    [void]$builder.AppendLine("      <pre>$summaryHtml</pre>")
+    [void]$builder.AppendLine('    </section>')
+    [void]$builder.AppendLine('    <section>')
+    [void]$builder.AppendLine('      <div class="section-title">')
+    [void]$builder.AppendLine('        <h2>Manual Actions</h2>')
+    [void]$builder.AppendLine("        <span class=""muted"">$recordCount record groups</span>")
+    [void]$builder.AppendLine('      </div>')
+
+    if ($totalActions -eq 0) {
+        [void]$builder.AppendLine('      <div class="empty-state">No manual actions were recorded for this migration.</div>')
+    } else {
+        foreach ($group in $groupedItems) {
+            $items = @($group.Group)
+            $coreItem = $items | Select-Object -First 1
+            $documentName = ConvertTo-ReportHtml ($coreItem.Document_Name ?? "Unnamed item")
+            $assetType = ConvertTo-ReportHtml ($coreItem.Asset_Type ?? "Unknown")
+            $companyName = ConvertTo-ReportHtml ($coreItem.Company_name ?? "No company")
+            $huduLink = New-ReportLink -Url $coreItem.Hudu_URL -Label "Open in Hudu"
+            $itgLink = New-ReportLink -Url $coreItem.ITG_URL -Label "Open in IT Glue"
+
+            [void]$builder.AppendLine('      <article class="action-card">')
+            [void]$builder.AppendLine('        <div class="action-header">')
+            [void]$builder.AppendLine("          <h3>$documentName <span class=""badge"">$($items.Count) action$(if ($items.Count -eq 1) { '' } else { 's' })</span></h3>")
+            [void]$builder.AppendLine('          <div class="meta-grid">')
+            [void]$builder.AppendLine("            <div><strong>Type:</strong> $assetType</div>")
+            [void]$builder.AppendLine("            <div><strong>Company:</strong> $companyName</div>")
+            [void]$builder.AppendLine("            <div><strong>Hudu:</strong> $huduLink</div>")
+            [void]$builder.AppendLine("            <div><strong>IT Glue:</strong> $itgLink</div>")
+            [void]$builder.AppendLine('          </div>')
+            [void]$builder.AppendLine('        </div>')
+            [void]$builder.AppendLine('        <div class="table-wrap">')
+            [void]$builder.AppendLine('          <table>')
+            [void]$builder.AppendLine('            <thead><tr><th class="field-col">Field</th><th class="notes-col">Notes</th><th class="action-col">Action</th><th class="data-col">Data</th></tr></thead>')
+            [void]$builder.AppendLine('            <tbody>')
+
+            foreach ($manualAction in $items) {
+                $field = ConvertTo-ReportHtml ($manualAction.Field_Name ?? "N/A")
+                $notes = ConvertTo-ReportHtml ($manualAction.Notes ?? $manualAction.Problem ?? "")
+                $action = ConvertTo-ReportHtml ($manualAction.Action ?? $manualAction.Actions ?? "")
+                $data = ConvertTo-ReportHtml $manualAction.Data
+
+                [void]$builder.AppendLine("              <tr><td>$field</td><td>$notes</td><td>$action</td><td>$data</td></tr>")
+            }
+
+            [void]$builder.AppendLine('            </tbody>')
+            [void]$builder.AppendLine('          </table>')
+            [void]$builder.AppendLine('        </div>')
+            [void]$builder.AppendLine('      </article>')
+        }
+    }
+
+    [void]$builder.AppendLine('    </section>')
+    [void]$builder.AppendLine('  </main>')
+    [void]$builder.AppendLine('</body>')
+    [void]$builder.AppendLine('</html>')
+
+    $builder.ToString() | Out-File $OutputPath -Encoding utf8
+
+}
+
 function ChoseBest-ByName {
     param ([string]$Name,[array]$choices,[string]$prop='name')
 return $($choices | ForEach-Object {
@@ -177,31 +564,12 @@ function Format-MigrationSummary {
         [timespan]$Duration,
 
         [string]$DebugFolder = "$PSScriptRoot\debug",
-        [string]$MigrationLogs = "$PSScriptRoot\debug\logs"
+        [string]$MigrationLogs = "$PSScriptRoot\debug\logs",
+        $migratedItems,
+        $archivedItems
     )
 
-    $migratedItems = [ordered]@{
-        'Companies Migrated'                         = Get-SafeCount $MatchedCompanies
-        'Locations Migrated'                         = Get-SafeCount $MatchedLocations
-        'Websites Migrated'                          = Get-SafeCount $MatchedWebsites
-        'Configurations Migrated'                    = Get-SafeCount $MatchedConfigurations
-        'Contacts Migrated'                          = Get-SafeCount $MatchedContacts
-        'Layouts Migrated'                           = Get-SafeCount $MatchedLayouts
-        'Assets Migrated'                            = Get-SafeCount $MatchedAssets
-        'Articles Migrated'                          = Get-SafeCount $MatchedArticles
-        'Passwords Migrated'                         = Get-SafeCount $MatchedPasswords
-        'Password Folders Migrated'                  = Get-SafeCount $MatchedPasswordFolders
-        'Checklists / Checklist Templates Migrated'  = Get-SafeCount $MatchedChecklists
-        'Relations Created'                          = Get-SafeCount $NewRelationsCreated
-        'IPAM Interfaces/Networks/Addresses Migrated'= Get-SafeCount $MatchedInterfaces
-    }
 
-    $archivedItems = [ordered]@{
-        'Passwords Archived'       = $ptaresults ?? 0
-        'Configurations Archived'  = $ctaresults ?? 0
-        'Assets Archived'          = $ataresults ?? 0
-        'Documents Archived'       = $documentArchiveResults ?? 0
-    }
 
     $debugPath = (Resolve-Path -LiteralPath $DebugFolder -ErrorAction SilentlyContinue).Path
     $logsPath  = (Resolve-Path -LiteralPath $MigrationLogs -ErrorAction SilentlyContinue).Path
