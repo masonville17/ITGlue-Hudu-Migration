@@ -2536,18 +2536,22 @@ $DocsCsv = import-csv "$ITGLueExportPath\documents.csv"
 $ArchivedPasswords = $MatchedPasswords |? {$_.itgobject.attributes.archived -eq $true}
 $ArchivedConfigurations = $MatchedConfigurations |? {$_.ITGObject.attributes.archived -eq $true}    
 $ArchivedAssets = $MatchedAssets |? {$_.ITGObject.attributes.archived -eq $true}
-$ArchivedDocs = $DocsCsv |? {$_.archived -eq 'yes'}
 
 write-host "wrapup 5/10... archiving items..."
 $ptaresults = $ArchivedPasswords | % {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduPasswordArchive -id $_.huduid -Archive $true}}
 $ctaresults = $ArchivedConfigurations |% {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduAssetArchive -Id $_.huduid -CompanyId $_.huduobject.company_id -Archive $true}}
 $ataresults = $ArchivedAssets |% {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduAssetArchive -Id $_.huduid -CompanyId $_.huduobject.company_id -Archive $true}}
-$dtaresults = $ArchivedDocs |% {$i = $_; $A2D = $MatchedArticles |? {$A2D.itgid -eq $i.id}; if ($A2D.huduid -and $A2D.huduid -gt 0) {Set-HuduArticleArchive -Id $A2D.HuduId -Archive $true}} 
+$documentsForArchive =  $($matchedarticles | Where-Object {@($($($DocsCsv) | Where-Object {$_.archived -ne "No"}) | ForEach-Object {"$($_.id)"}) -contains [string]($_.ITGID)})
+$documentArchiveResults = foreach ($doc in $documentsForArchive) {
+    if ($doc.huduid -and $doc.huduid -gt 0) {
+        Set-HuduArticleArchive -id $doc.huduid -Archive $true -confirm:$false
+    }
+}
 foreach ($obj in @(
     @{Name = "passwords";       Archived = $ptaresults ?? @() },
     @{Name = "configs";         Archived = $ctaresults ?? @() },
     @{Name = "assets";          Archived = $ataresults ?? @() },
-    @{Name = "docs";            Archived = $dtaresults ?? @() })) {
+    @{Name = "docs";            Archived = $documentArchiveResults ?? @() })) {
     $obj.Archived | ConvertTo-Json -depth 75 | Out-File $(join-path $settings.MigrationLogs "archived-$($obj.Name).json")
 }
 write-host "wrapup 6/10... Setting Standalone articles with attachments to filename..."
