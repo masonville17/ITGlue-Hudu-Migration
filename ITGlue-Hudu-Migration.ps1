@@ -137,20 +137,21 @@ Please DO NOT CHANGE ANYTHING in the Migration Logs folder. This can save you.
 '@ -ForegroundColor DarkCyan
 
 # CMA
-Write-Host "######################################################" -ForegroundColor Red
-Write-Host "Have you taken a full backup of your Hudu Environment?" -ForegroundColor Red
-Write-Host "Things could go wrong and you need to be able to " -ForegroundColor Red
-Write-Host "recover to the state from before the script was run" -ForegroundColor Red
-Write-Host "######################################################" -ForegroundColor Red
-Write-Host "######################################################" -ForegroundColor Red
-Write-Host "This Script has the potential to ruin your Hudu environment" -ForegroundColor Red
-Write-Host "You run it entirely at your own risk" -ForegroundColor Red
-Write-Host "You accept full responsibility for any problems caused by running it" -ForegroundColor Red
-Write-Host "######################################################" -ForegroundColor Red
+Write-Host @"
+######################################################
+Have you taken a full backup of your Hudu Environment?
+Things could go wrong and you need to be able to 
+recover to the state from before the script was run
+######################################################
+This Script has the potential to ruin your Hudu environment
+You run it entirely at your own risk
+You accept full responsibility for any problems caused by running it
+######################################################
+"@ -ForegroundColor Red
 
 # Prompt for backups, initialize modules, check versions
 $backups=$(if ($true -eq $NonInteractive) {"Y"} else {Read-Host "Y/n"})
-$ScriptStartTime = $(Get-Date -Format "o")
+$ScriptStartTime = $(Get-Date)
 $CurrentVersion =  Set-ExternalModulesInitialized `
         -RequiredHuduVersion ([version]"2.39.6") `
         -DisallowedVersions @([version]"2.37.0") `
@@ -2462,29 +2463,29 @@ $ManualActionsReport = foreach ($item in $UniqueItems) {
 }
 
 ############################### Wrap-Up ###############################
-write-host "wrapup 1/10... setting asset layouts as active, enabling advanced website monitoring features"
+write-host "wrapup 1/10... setting asset layouts as active, enabling advanced website monitoring features" -ForegroundColor DarkCyan
 foreach ($layout in Get-HuduAssetLayouts) {write-host "setting $($(Set-HuduAssetLayout -id $layout.id -Active $true).asset_layout.name) as active" }
 if ($DisableWebsiteMonitoring) {write-host "leaving websites unmonitored per user-config"} else {$MatchedWebsites.HuduObject | Where-Object {$_.id -and $_.id -gt 0} | Foreach-Object {write-host "Enabling advanced monitoring features for $($(Set-HuduWebsite -id $_.id -EnableDMARC 'true' -EnableDKIM 'true' -EnableSPF 'true' -DisableDNS 'false' -DisableSSL 'false' -DisableWhois 'false' -Paused 'false').name)" -ForegroundColor DarkCyan}}
 write-host "wrapup 2/10... adding attachments (this can take a while)"
 . .\Add-HuduAttachmentsViaAPI.ps1
 
-write-host "wrapup 3/10... adding missing relations (this can take a long while). Some errors may appear but can be safely ignored."
+write-host "wrapup 3/10... adding missing relations (this can take a long while). Some errors may appear but can be safely ignored."  -ForegroundColor DarkCyan
 # set retry to off/false in HuduAPI module, this will save time during adding potentially existent relations.
 if (get-command -name Set-HapiErrorsDirectory -ErrorAction SilentlyContinue){try {Set-HapiErrorsDirectory -skipRetry $true} catch {}}
 . .\Get-MissingRelations.ps1
 
-write-host "wrapup 4/10... archiving passwords, assets, configurations as they had been in ITGlue (this can take a while)"
+write-host "wrapup 4/10... archiving passwords, assets, configurations as they had been in ITGlue (this can take a while)"  -ForegroundColor DarkCyan
 $DocsCsv = import-csv "$ITGLueExportPath\documents.csv"
-$ArchivedPasswords = $MatchedPasswords |? {$_.itgobject.attributes.archived -eq $true}
-$ArchivedConfigurations = $MatchedConfigurations |? {$_.ITGObject.attributes.archived -eq $true}    
-$ArchivedAssets = $MatchedAssets |? {$_.ITGObject.attributes.archived -eq $true}
+$ArchivedPasswords = $MatchedPasswords | Where-Object {$_.itgobject.attributes.archived -eq $true}
+$ArchivedConfigurations = $MatchedConfigurations | Where-Object {$_.ITGObject.attributes.archived -eq $true}    
+$ArchivedAssets = $MatchedAssets | Where-Object {$_.ITGObject.attributes.archived -eq $true}
 
-write-host "wrapup 5/10... archiving items..."
+write-host "wrapup 5/10... archiving items..."  -ForegroundColor DarkCyan
 $ptaresults = $ArchivedPasswords | ForEach-Object {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduPasswordArchive -id $_.huduid -Archive $true}}
 $ctaresults = $ArchivedConfigurations |ForEach-Object {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduAssetArchive -Id $_.huduid -CompanyId $_.huduobject.company_id -Archive $true}}
 $ataresults = $ArchivedAssets |ForEach-Object {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduAssetArchive -Id $_.huduid -CompanyId $_.huduobject.company_id -Archive $true}}
 $documentsForArchive =  $($matchedarticles | Where-Object {@($($($DocsCsv) | Where-Object {$_.archived -ne "No"}) | ForEach-Object {"$($_.id)"}) -contains [string]($_.ITGID)})
-$DocsCsv = import-csv "$ITGLueExportPath\documents.csv"; $documentArchiveResults = foreach ($doc in $documentsForArchive) {if ($doc.huduid -and $doc.huduid -gt 0) {Set-HuduArticleArchive -id $doc.huduid -Archive $true -confirm:$false}};
+$documentArchiveResults = foreach ($doc in $documentsForArchive) {if ($doc.huduid -and $doc.huduid -gt 0) {Set-HuduArticleArchive -id $doc.huduid -Archive $true -confirm:$false}};
 foreach ($obj in @(
     @{Name = "passwords";       Archived = $ptaresults ?? @() },
     @{Name = "configs";         Archived = $ctaresults ?? @() },
@@ -2520,30 +2521,43 @@ foreach ($auxilliaryObj in @(@{Name = "passwordfolders"; Created = $MatchedPassw
     $auxilliaryObj.Created | ConvertTo-Json -depth 75 | Out-File $(join-path $settings.MigrationLogs "created-$($auxilliaryObj.Name).json")
 }
 ############################### End ###############################
-
 $FinalHtml = "$Head $MigrationReport $ManualActionsReport $footer"
 $FinalHtml | Out-File ManualActions.html
 
-Write-Host "#######################################################" -ForegroundColor Green
-Write-Host "#                                                     #" -ForegroundColor Green
-Write-Host "#        IT Glue to Hudu Migration Complete           #" -ForegroundColor Green
-Write-Host "#                                                     #" -ForegroundColor Green
-Write-Host "#######################################################" -ForegroundColor Green
-Write-Host "Started At: $ScriptStartTime"
-Write-Host "Completed At: $(Get-Date -Format "o")"
-Write-Host "$(($MatchedCompanies | Measure-Object).count) : Companies Migrated" -ForegroundColor Green
-Write-Host "$(($MatchedLocations | Measure-Object).count) : Locations Migrated" -ForegroundColor Green
-Write-Host "$(($MatchedWebsites | Measure-Object).count) : Websites Migrated" -ForegroundColor Green
-Write-Host "$(($MatchedConfigurations | Measure-Object).count) : Configurations Migrated" -ForegroundColor Green
-Write-Host "$(($MatchedContacts | Measure-Object).count) : Contacts Migrated" -ForegroundColor Green
-Write-Host "$(($MatchedLayouts | Measure-Object).count) : Layouts Migrated" -ForegroundColor Green
-Write-Host "$(($MatchedAssets | Measure-Object).count) : Assets Migrated" -ForegroundColor Green
-Write-Host "$(($MatchedArticles | Measure-Object).count) : Articles Migrated" -ForegroundColor Green
-Write-Host "$(($MatchedPasswords | Measure-Object).count) : Passwords Migrated" -ForegroundColor Green
+$CompletedAt = Get-Date
+$Duration = New-TimeSpan -Start $ScriptStartTime -End $CompletedAt
 
-Write-Host "#######################################################" -ForegroundColor Green
-Write-Host "Manual Actions report can be found in ManualActions.html in the folder the script was run from"
-Write-Host "Logs of what was migrated can be found in the MigrationLogs folder"
+Write-Host @"
+#######################################################
+          IT Glue to Hudu Migration Complete
+#######################################################
+Started At: $ScriptStartTime
+Completed At: $CompletedAt
+Duration: $($Duration.ToString("hh\:mm\:ss"))
+-------------------------------------------------------
+$(($MatchedCompanies | Measure-Object).count) : Companies Migrated
+$(($MatchedLocations | Measure-Object).count) : Locations Migrated 
+$(($MatchedWebsites | Measure-Object).count) : Websites Migrated
+$(($MatchedConfigurations | Measure-Object).count) : Configurations Migrated
+$(($MatchedContacts | Measure-Object).count) : Contacts Migrated
+$(($MatchedLayouts | Measure-Object).count) : Layouts Migrated
+$(($MatchedAssets | Measure-Object).count) : Assets Migrated
+$(($MatchedArticles | Measure-Object).count) : Articles Migrated
+$(($MatchedPasswords | Measure-Object).count) : Passwords Migrated
+$($MatchedPasswordFolders.count) : Password Folders Migrated
+$($MatchedChecklists.count) : Checklists / Checklist Templates Migrated
+$($NewRelationsCreated.count) : Relations Created
+$($MatchedInterfaces.count) : IPAM Interfaces/Networks/Addresses Migrated
+-------------------------------------------------------
+$($ptaresults) : Passwords Archived
+$($ctaresults) : Configurations Archived
+$($ataresults) : Assets Archived
+$($documentArchiveResults) : Documents Archived
+#######################################################
+Manual Actions report can be found in $($(resolve-path .).path)\ManualActions.html
+Logs of what was migrated can be found in the $($(resolve-path $($debugFolder ?? "$PSScriptRoot\debug")).path) and $($(resolve-path $($MigrationLogs ?? "$PSScriptRoot\debug\logs")).path) folders, including snapshots of matched items with and without data that was migrated, and the results of any attempted URL replacements in descriptions and content.
+"@ -ForegroundColor DarkCyan
+
 
 Write-TimedMessage -Message "Press any key to view manual actions" -Timeout 120  -DefaultResponse "continue, view generative Manual Actions webpage, please."
 Start-Process ManualActions.html
