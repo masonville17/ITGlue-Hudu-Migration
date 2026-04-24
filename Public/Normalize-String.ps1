@@ -218,6 +218,7 @@ function Format-MigrationSummary {
     $lines.Add("Started At:   $ScriptStartTime")
     $lines.Add("Completed At: $CompletedAt")
     $lines.Add("Duration:     $($Duration.ToString('hh\:mm\:ss'))")
+    $lines.Add("Hudu Version:  $($CurrentVersion ?? ([version]$(Get-HuduAppInfo).version))")
     $lines.Add('-------------------------------------------------------')
 
     foreach ($item in $migratedItems.GetEnumerator()) {
@@ -235,3 +236,65 @@ function Format-MigrationSummary {
 
     $lines -join [Environment]::NewLine
 }
+
+$InvocationWelcomeText = @'
+#######################################################"
+#
+#          IT Glue to Hudu Migration Script           
+#
+#          Version: 3.14.159
+#          Date: 02/02/2026
+#
+#          Original Author: Luke Whitelock
+#                  https://mspp.io
+#          Contributors: John Duprey
+#                        Mendy Green
+#                        Mason Stelter
+#                  https://MSPGeek.org                
+#                  https://mendyonline.com            
+#                                                     
+######################################################
+This is the Hudu Technologies Fork of an amazing open-source project.
+
+The original project was started by Luke Whitelock and often being maintained by Mendy Green and community contributors. 
+This fork is tested for and intended to be used with the very newest Hudu versions.
+
+If you encounter any issues while using this version/fork, feel free to contact hudu support
+or reach out to the community for assistance.
+
+Email: support@usehudu.com
+Chat: support@hudumagic.com
+https://community.hudu.com/
+
+# The #v-hudu channel on the MSPGeek Slack/Discord:   
+# https://join.mspgeek.com/                           
+# Or log an issue here:
+# https://github.com/Hudu-Technologies-Inc/ITGlue-Hudu-Migration/issues
+
+ Instructions:                                       
+ Please view Luke's blog post:                       
+ https://mspp.io/automated-it-glue-to-hudu-migration-script/
+ for instructions specific to this fork, please see README.md and/or SwitchingLayouts.md [if applicable]
+   .-.-.   .-.-.   .-.-.   .-.-.   .-.-.   .-.-.   .-.-.   .-.-
+ / / \ \ / / \ \ / / \ \ / / \ \ / / \ \ / / \ \ / / \ \ / / \
+`-'   `-`-'   `-`-'   `-`-'   `-`-'   `-`-'   `-`-'   `-`-'
+'@
+
+$BackupSafetyText = @'
+<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>- !!!
+Please keep ALL COPIES of the Migration Logs folder. This can save you.
+Please DO NOT CHANGE ANYTHING in the Migration Logs folder. This can save you.
+<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>- !!!
+'@
+
+$LiabilityWarning = @"
+######################################################
+Have you taken a full backup of your Hudu Environment?
+Things could go wrong and you need to be able to 
+recover to the state from before the script was run
+######################################################
+This Script has the potential to ruin your Hudu environment
+You run it entirely at your own risk
+You accept full responsibility for any problems caused by running it
+######################################################
+"@
