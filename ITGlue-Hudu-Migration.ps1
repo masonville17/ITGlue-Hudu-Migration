@@ -302,29 +302,20 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Companies.json")) {
     # Check if the internal company was found and that there was only 1 of them
     $PrimaryCompany = $MatchedCompanies | Sort-Object CompanyName | Where-Object { $_.InternalCompany -eq $true } | Select-Object CompanyName
 
-    if (($PrimaryCompany | measure-object).count -ne 1) {
+    if (($PrimaryCompany | measure-object).count -ne 1 -and -not ($PlaceInternalDocsInInternalCompany ?? $false)) {
         Write-Host "A single Internal Company was not found please run the script again and check the company name entered exactly matches what is in ITGlue" -foregroundcolor red
         exit 1
     }
 
     # Lets confirm it is the correct one
-    Write-Host ""
-    Write-Host "Your Internal Company has been matched to: $(($MatchedCompanies | Sort-Object CompanyName | Where-Object {$_.InternalCompany -eq $true} | Select-Object CompanyName).companyname) in IT Glue"
-    if ($PlaceInternalDocsInInternalCompany) {
-        Write-Host "The documents under this customer will stay in that company in Hudu"
-    } else {
-        Write-Host "The documents under this customer will be migrated to the Global KB in Hudu"
-    }
-    Write-Host ""
-    Write-TimedMessage -Message "Internal Company Correct? Press Return to continue or CTRL+C to quit if this is not correct" -Timeout 12 -DefaultResponse "Assuming found match on '$(($MatchedCompanies | Sort-Object CompanyName | Where-Object {$_.InternalCompany -eq $true} | Select-Object CompanyName).companyname)' is correct."
+    Write-Host "Your Internal Company has been matched to: $(($MatchedCompanies | Sort-Object CompanyName | Where-Object {$_.InternalCompany -eq $true} | Select-Object CompanyName).companyname) in IT Glue. $(if ($true -eq $PlaceInternalDocsInInternalCompany){'The documents under this customer will stay in that company in Hudu'} else {'The documents under this customer will be migrated to the Global KB in Hudu'})" -ForegroundColor Green
+    if ($true -eq $PlaceInternalDocsInInternalCompany){Write-TimedMessage -Message "Internal Company Correct? Press Return to continue or CTRL+C to quit if this is not correct" -Timeout 12 -DefaultResponse "Assuming found match on '$(($MatchedCompanies | Sort-Object CompanyName | Where-Object {$_.InternalCompany -eq $true} | Select-Object CompanyName).companyname)' is correct."}
 
     Write-Host "Matched Companies (Already exist so will not be migrated)"
     $MatchedCompanies | Sort-Object CompanyName | Where-Object { $_.Matched -eq $true } | Select-Object CompanyName | Format-Table
 
     Write-Host "Unmatched Companies"
     $MatchedCompanies | Sort-Object CompanyName | Where-Object { $_.Matched -eq $false } | Select-Object CompanyName | Format-Table
-
-
 
     #Import Locations
     Write-Host "Fetching Locations from IT Glue" -ForegroundColor Green
@@ -556,11 +547,11 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Locations.json")) {
     $MatchedLocations = Import-Items @LocImportSplat
 
     $ITGLocationsHashTable = @{}
-    foreach ($ITGL in $MatchedLocations) {
+    foreach ($ITGL in $($MatchedLocations ?? @())) {
         $ITGLocationsHashTable[$ITGL.itgid] = $ITGL
     }
     # Save the results to resume from if needed
-    $MatchedLocations | ConvertTo-Json -depth 100 | Out-File "$MigrationLogs\Locations.json"
+    $($MatchedLocations ?? @()) | ConvertTo-Json -depth 100 | Out-File "$MigrationLogs\Locations.json"
     Write-TimedMessage -Timeout 3 -Message "Snapshot Point: Locations Migrated Continue?"  -DefaultResponse "continue to Websites, please."
 
 }
@@ -2363,7 +2354,7 @@ foreach ($companyFound in $UpdateCompanyNotes.HuduCompanyObject) {
 $companyNotesUpdated | ConvertTo-Json -depth 100 |Out-file "$MigrationLogs\ReplacedCompaniesURL.json"
 Write-TimedMessage -Timeout 3 -Message "Snapshot Point: Company Notes URLs Replaced. Continue?"  -DefaultResponse "continue to Manual Actions, please."
 
-if ($OptionalImageAnchorReplace -eq $true -or $OptionalImageAnchorReplace -eq 1){
+if ($null -eq $OptionalImageAnchorReplace -or $OptionalImageAnchorReplace -eq $true -or $OptionalImageAnchorReplace -eq 1){
     Write-Host "Replacing links to hosted public photos in Hudu Articles"
     if (-not $(get-command -name Set-HuduImageAnchorsReplaced -ErrorAction SilentlyContinue)){. $PSScriptRoot\Public\Set-HuduImageAnchorsReplaced.ps1}
     Get-AllHuduHostedImageAnchorsReplaced -allhuduArticles $(get-huduarticles)

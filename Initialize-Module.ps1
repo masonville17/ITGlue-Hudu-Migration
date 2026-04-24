@@ -310,7 +310,7 @@ $ITGURL = $environmentSettings.ITGURL
 
 # IT Glue Internal Company Name
 $InternalCompany = $environmentSettings.InternalCompany
-$PlaceInternalDocsInInternalCompany = [bool]$environmentSettings.PlaceInternalDocsInInternalCompany
+$PlaceInternalDocsInInternalCompany = [bool]$environmentSettings.PlaceInternalDocsInInternalCompany ?? $false
 
 $ITGLueExportPath = $environmentSettings.ITGLueExportPath
 
