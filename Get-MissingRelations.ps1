@@ -382,19 +382,19 @@ if (-not $MatchedWebsites) {$MatchedWebsites = (Get-Content -path "$MigrationLog
 
 
 write-host "refreshing $($MatchedAssets.count) assets"
-$FreshITGAssets= $MatchedAssets |% { Get-ITGlueFlexibleAssets -id $_.ITGObject.id -include related_items}
+$FreshITGAssets= $MatchedAssets |ForEach-Object { Get-ITGlueFlexibleAssets -id $_.ITGObject.id -include related_items}
 $RelatedAssets = $FreshITGAssets | Where-Object { Test-ITGlueResponseHasRelationData -Response $_ }
 
 write-host "refreshing $($MatchedConfigurations.count) configs"
-$FreshConfigurations = $MatchedConfigurations | % {Get-ITGlueConfigurations -id $_.itgobject.id -include related_items}
+$FreshConfigurations = $MatchedConfigurations | ForEach-Object {Get-ITGlueConfigurations -id $_.itgobject.id -include related_items}
 $RelatedConfigurations = $FreshConfigurations | Where-Object { Test-ITGlueResponseHasRelationData -Response $_ }
 
 write-host "refreshing $($MatchedPasswords.count) passwords"
-$FreshPasswords = $MatchedPasswords | % {Get-ITGluePasswords -id $_.itgobject.id -include related_items}
+$FreshPasswords = $MatchedPasswords | ForEach-Object {Get-ITGluePasswords -id $_.itgobject.id -include related_items}
 $RelatedPasswords = $FreshPasswords | Where-Object { Test-ITGlueResponseHasRelationData -Response $_ }
 
 write-host "refreshing $($MatchedContacts.count) contacts"
-$FreshContacts = $MatchedContacts | % {Get-ITGlueContacts -id $_.ITGObject.id -include related_items}
+$FreshContacts = $MatchedContacts | ForEach-Object {Get-ITGlueContacts -id $_.ITGObject.id -include related_items}
 $RelatedContacts = $FreshContacts | Where-Object { Test-ITGlueResponseHasRelationData -Response $_ }
 
 write-host "refreshing $($MatchedArticles.count) articles"

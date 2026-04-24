@@ -82,75 +82,14 @@ $FontAwesomeUpgrade = Get-FontAwesomeMap
 
 if (-not (Get-Command -Name Get-UserFlagSetup -ErrorAction SilentlyContinue)) { . $PSScriptRoot\Public\Add-OptionalFlags.ps1 }
 
-############################### End of Functions ###############################
-
-
 ###################### Initial Setup and Confirmations ###############################
-Write-Host @'
-#######################################################"
-#
-#          IT Glue to Hudu Migration Script           
-#
-#          Version: 3.14.159
-#          Date: 02/02/2026
-#
-#          Original Author: Luke Whitelock
-#                  https://mspp.io
-#          Contributors: John Duprey
-#                        Mendy Green
-#                        Mason Stelter
-#                  https://MSPGeek.org                
-#                  https://mendyonline.com            
-#                                                     
-######################################################
-This is the Hudu Technologies Fork of an amazing open-source project.
-
-The original project was started by Luke Whitelock and often being maintained by Mendy Green and community contributors. 
-This fork is tested for and intended to be used with the very newest Hudu versions.
-
-If you encounter any issues while using this version/fork, feel free to contact hudu support
-or reach out to the community for assistance.
-
-Email: support@usehudu.com
-Chat: support@hudumagic.com
-https://community.hudu.com/
-
-# The #v-hudu channel on the MSPGeek Slack/Discord:   
-# https://join.mspgeek.com/                           
-# Or log an issue here:
-# https://github.com/Hudu-Technologies-Inc/ITGlue-Hudu-Migration/issues
-
- Instructions:                                       
- Please view Luke's blog post:                       
- https://mspp.io/automated-it-glue-to-hudu-migration-script/
- for instructions specific to this fork, please see README.md and/or SwitchingLayouts.md [if applicable]
-   .-.-.   .-.-.   .-.-.   .-.-.   .-.-.   .-.-.   .-.-.   .-.-
- / / \ \ / / \ \ / / \ \ / / \ \ / / \ \ / / \ \ / / \ \ / / \
-`-'   `-`-'   `-`-'   `-`-'   `-`-'   `-`-'   `-`-'   `-`-'
-'@ -ForegroundColor Green
-
-write-host @'
-<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>- !!!
-Please keep ALL COPIES of the Migration Logs folder. This can save you.
-Please DO NOT CHANGE ANYTHING in the Migration Logs folder. This can save you.
-<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>- !!!
-'@ -ForegroundColor DarkCyan
-
-# CMA
-Write-Host "######################################################" -ForegroundColor Red
-Write-Host "Have you taken a full backup of your Hudu Environment?" -ForegroundColor Red
-Write-Host "Things could go wrong and you need to be able to " -ForegroundColor Red
-Write-Host "recover to the state from before the script was run" -ForegroundColor Red
-Write-Host "######################################################" -ForegroundColor Red
-Write-Host "######################################################" -ForegroundColor Red
-Write-Host "This Script has the potential to ruin your Hudu environment" -ForegroundColor Red
-Write-Host "You run it entirely at your own risk" -ForegroundColor Red
-Write-Host "You accept full responsibility for any problems caused by running it" -ForegroundColor Red
-Write-Host "######################################################" -ForegroundColor Red
+Write-Host $InvocationWelcomeText -ForegroundColor Green
+write-host $BackupSafetyText -ForegroundColor DarkCyan
+Write-Host $LiabilityWarning -ForegroundColor Red
 
 # Prompt for backups, initialize modules, check versions
 $backups=$(if ($true -eq $NonInteractive) {"Y"} else {Read-Host "Y/n"})
-$ScriptStartTime = $(Get-Date -Format "o")
+$ScriptStartTime = $(Get-Date)
 $CurrentVersion =  Set-ExternalModulesInitialized `
         -RequiredHuduVersion ([version]"2.39.6") `
         -DisallowedVersions @([version]"2.37.0") `
@@ -170,9 +109,8 @@ if (-not $true -eq $itglueScopeOk -or -not $true -eq $huduScopeOk) {
 
 
 if ($true -eq $allowSettingFlagsAndTypes){. .\Public\Get-UserFlagPreferences.ps1} else {$allowSettingFlagsAndTypes = $false; $flagPasswordsByType = $false; $ObjectFlagMap = @{};}
-# Check if we have a logs folder
 
-if ($backups -ne "Y" -or $backups -ne "y") {
+if ($backups -notin @("Y", "y")) {
     Write-Host "Please take a backup and run the script again"
     exit 1
 }
@@ -302,29 +240,20 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Companies.json")) {
     # Check if the internal company was found and that there was only 1 of them
     $PrimaryCompany = $MatchedCompanies | Sort-Object CompanyName | Where-Object { $_.InternalCompany -eq $true } | Select-Object CompanyName
 
-    if (($PrimaryCompany | measure-object).count -ne 1) {
+    if (($PrimaryCompany | measure-object).count -ne 1 -and -not ($PlaceInternalDocsInInternalCompany ?? $false)) {
         Write-Host "A single Internal Company was not found please run the script again and check the company name entered exactly matches what is in ITGlue" -foregroundcolor red
         exit 1
     }
 
     # Lets confirm it is the correct one
-    Write-Host ""
-    Write-Host "Your Internal Company has been matched to: $(($MatchedCompanies | Sort-Object CompanyName | Where-Object {$_.InternalCompany -eq $true} | Select-Object CompanyName).companyname) in IT Glue"
-    if ($PlaceInternalDocsInInternalCompany) {
-        Write-Host "The documents under this customer will stay in that company in Hudu"
-    } else {
-        Write-Host "The documents under this customer will be migrated to the Global KB in Hudu"
-    }
-    Write-Host ""
-    Write-TimedMessage -Message "Internal Company Correct? Press Return to continue or CTRL+C to quit if this is not correct" -Timeout 12 -DefaultResponse "Assuming found match on '$(($MatchedCompanies | Sort-Object CompanyName | Where-Object {$_.InternalCompany -eq $true} | Select-Object CompanyName).companyname)' is correct."
+    Write-Host "Your Internal Company has been matched to: $(($MatchedCompanies | Sort-Object CompanyName | Where-Object {$_.InternalCompany -eq $true} | Select-Object CompanyName).companyname) in IT Glue. $(if ($true -eq $PlaceInternalDocsInInternalCompany){'The articles under this company will stay in that company in Hudu'} else {'The articles under this company will be migrated to the Global KB in Hudu'})" -ForegroundColor Green
+    if ($true -eq $PlaceInternalDocsInInternalCompany){Write-TimedMessage -Message "Internal Company Correct? Press Return to continue or CTRL+C to quit if this is not correct" -Timeout 12 -DefaultResponse "Assuming found match on '$(($MatchedCompanies | Sort-Object CompanyName | Where-Object {$_.InternalCompany -eq $true} | Select-Object CompanyName).companyname)' is correct."}
 
     Write-Host "Matched Companies (Already exist so will not be migrated)"
     $MatchedCompanies | Sort-Object CompanyName | Where-Object { $_.Matched -eq $true } | Select-Object CompanyName | Format-Table
 
     Write-Host "Unmatched Companies"
     $MatchedCompanies | Sort-Object CompanyName | Where-Object { $_.Matched -eq $false } | Select-Object CompanyName | Format-Table
-
-
 
     #Import Locations
     Write-Host "Fetching Locations from IT Glue" -ForegroundColor Green
@@ -556,11 +485,11 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Locations.json")) {
     $MatchedLocations = Import-Items @LocImportSplat
 
     $ITGLocationsHashTable = @{}
-    foreach ($ITGL in $MatchedLocations) {
+    foreach ($ITGL in $($MatchedLocations ?? @())) {
         $ITGLocationsHashTable[$ITGL.itgid] = $ITGL
     }
     # Save the results to resume from if needed
-    $MatchedLocations | ConvertTo-Json -depth 100 | Out-File "$MigrationLogs\Locations.json"
+    $($MatchedLocations ?? @()) | ConvertTo-Json -depth 100 | Out-File "$MigrationLogs\Locations.json"
     Write-TimedMessage -Timeout 3 -Message "Snapshot Point: Locations Migrated Continue?"  -DefaultResponse "continue to Websites, please."
 
 }
@@ -1640,7 +1569,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Assets.json")) {
                         if ($Supported -eq $False) {
                             $ManualLog = [PSCustomObject]@{
                                 Document_Name = $UpdateAsset.Name
-                                Asset_Type    = $UpdateAsset.HuduObject.asset_type
+                                Type          = ($UpdateAsset.HuduObject.asset_type ?? "Asset") + " Field - Tag"
                                 Company_Name  = $UpdateAsset.HuduObject.company_name
                                 HuduID        = $UpdateAsset.HuduID
                                 Field_Name    = $($field.FieldName)
@@ -1671,11 +1600,11 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Assets.json")) {
                             Write-Host "Error occured adding field, possible duplicate name" -ForegroundColor Red
                             $ManualLog = [PSCustomObject]@{
                                 Document_Name = $UpdateAsset.Name
-                                Asset_Type    = "Asset Field"
+                                Type          = "Asset Field - Password"
                                 Company_Name  = $UpdateAsset.HuduObject.company_name
                                 HuduID        = $UpdateAsset.HuduID
-                                Field_Name    = "$field.HuduParsedName"
-                                Notes         = "Failed to add password to Asset"
+                                Field_Name    = "$($field.HuduParsedName)"
+                                Notes         = "Failed to add password to Asset with error $_"
                                 Action        = "Manually add the password to the asset"
                                 Data          = ($ITGPassword.attributes.'resource-url' -replace '[^\x09\x0A\x0D\x20-\xD7FF\xE000-\xFFFD\x10000\x10FFFF]')
                                 Hudu_URL      = $UpdateAsset.HuduObject.url
@@ -1839,11 +1768,12 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Articles.json")) {
                             Write-Warning "Unable to validate image file."
                             $ManualLog = [PSCustomObject]@{
                                     Document_Name = $Article.Name
-                                    Asset_Type    = "Article"
                                     Company_Name  = $Article.Company.CompanyName
                                     HuduID        = $Article.HuduID
+                                    Type          = "Article - Image"
+                                    Field_Name    = "Image"
                                     Notes         = 'Missing image, file not found'
-                                    Actions       = "Neither $fullImgPath or $tnImgPath were found, validate the images exist in the export, or retrieve them from ITGlue directly"
+                                    Action        = "Neither $fullImgPath or $tnImgPath were found, validate the images exist in the export, or retrieve them from ITGlue directly"
                                     Data          = "$InFile"
                                     Hudu_URL      = $Article.HuduObject.url
                                     ITG_URL       = "$ITGURL/$($Article.ITGLocator)"
@@ -1869,15 +1799,21 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Articles.json")) {
                                     $UploadImage = New-HuduPublicPhoto -FilePath $imagePath.ToLower() -record_id $Article.HuduID -record_type 'Article'
                                 } catch {
                     # issue during Upload
-                                    Write-ErrorObjectsToFile -ErrorObject @{
-                                        Err = $_
-                                        ImageObject = $imageObject
-                                        ImageLink=$ImgLink
-                                        UploadImage=$UploadImage
-                                        ImageInfo=$imageInfo
-                                        Article=$Article
-                                        Problem="image error during upload"
-                                    } -name "image-upload-err-$($imageInfo.basename)"
+                                    $ManualLog = [PSCustomObject]@{
+                                        Document_Name = $Article.Name
+                                        Type          = "Article - Image"
+                                        Company_Name  = $Article.Company.CompanyName
+                                        HuduID        = $Article.HuduID
+                                        Field_Name    = "Image"
+                                        Action        = "Failed to upload image to Hudu, manually upload and update the article with the new image URL"
+                                        Notes         = 'Failed to upload image to Hudu'
+                                        Data          = $_
+                                        Hudu_URL      = $Article.HuduObject.url
+				                        ITG_URL       = "$ITGURL/$($Article.ITGLocator)"
+                                    }
+                                    Write-ErrorObjectsToFile -ErrorObject $ManualLog -name "image-upload-err-$($imageInfo.basename)"
+                                    $null = $ManualActions.add($ManualLog)
+                                    continue
                                 }
                                 try {                                    
                                     $NewImageURL = $UploadImage.public_photo.url.replace($HuduBaseDomain, '')
@@ -1900,39 +1836,36 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Articles.json")) {
                                     }
                                 } catch {
                     # issue during HTML replace / parse
-                                    Write-ErrorObjectsToFile -ErrorObject @{
-                                        LogEntry        = $ManualLog
-                                        Err             = $_
-                                        ImageObject     = $imageObject
-                                        Problem         = "issue encountered during html image replace."
-                                        ImageLink       = $ImgLink
-                                        ImageInfo       = $imageInfo
-                                        NewImageURL     = $NewImageURL
-                                        Article         = $Article
-                                    } -name "image-err-$($imageInfo.basename)"
-
+                                    $ManualLog = [PSCustomObject]@{
+                                        Document_Name = $Article.Name
+                                        Type          = "Article - Image"
+                                        Company_Name  = $Article.Company.CompanyName
+                                        HuduID        = $Article.HuduID
+                                        Field_Name    = "Image"
+                                        Notes         = "Issue encountered during HTML image replacement."
+                                        Action        = "Manually update the article with the new image URL"
+                                        Data          = "New image URL: $NewImageURL; Error: $_"
+                                        Hudu_URL      = $Article.HuduObject.url
+				                        ITG_URL       = "$ITGURL/$($Article.ITGLocator)"
+                                    }
+                                    Write-ErrorObjectsToFile -ErrorObject $ManualLog -name "image-err-$($imageInfo.basename)"
                                     $null = $ManualActions.add($ManualLog)
                                 }
                             } else {
                     # image not detected by imagemagick
                                 $ManualLog = [PSCustomObject]@{
                                     Document_Name = $Article.Name
-                                    Asset_Type    = "Article"
                                     Company_Name  = $Article.Company.CompanyName
                                     HuduID        = $Article.HuduID
-                                    Notes       = 'Image Not Detected'
-                                    Action         = "$imagePath not detected as image, validate the identified file is an image, or imagemagick modules are loaded"        
-                                    Data = "$InFile"
-                                    Hudu_URL = $Article.HuduObject.url
-				                    ITG_URL = "$ITGURL/$($Article.ITGLocator)"
+                                    Type          = "Article - Image"
+                                    Field_Name    = "Image"
+                                    Notes         = 'Image Not Detected'
+                                    Action        = "$imagePath not detected as image, validate the identified file is an image, or imagemagick modules are loaded"        
+                                    Data          = "$InFile"
+                                    Hudu_URL      = $Article.HuduObject.url
+				                    ITG_URL       = "$ITGURL/$($Article.ITGLocator)"
                                 }
-                                Write-ErrorObjectsToFile -ErrorObject @{
-                                    LogEntry        = $ManualLog
-                                    Article         = $Article
-                                    ImageObject     = $imageObject
-                                    FileName        = $imagePath
-                                    Problem         = "image not detected at '$(Resolve-Path $imagePath)'"
-                                } -name "image-nd-$($imagePath)"
+                                Write-ErrorObjectsToFile -ErrorObject $ManualLog -name "image-nd-$($imagePath)"
                                 $null = $ManualActions.add($ManualLog)
 
                             }
@@ -2108,7 +2041,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Passwords.json")) {
                                 $ManualLog = [PSCustomObject]@{
                                     Document_Name = $FoundItem.name
                                     Field_Name    = $unmatchedPassword.ITGObject.attributes.name
-                                    Asset_Type    = "Asset password field"
+                                    Type          = "Asset password field"
                                     Company_Name  = $unmatchedPassword.ITGObject."organization-name"
                                     HuduID        = $unmatchedPassword.HuduID
                                     Notes         = "Password from FA Field not found."
@@ -2132,7 +2065,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Passwords.json")) {
                                     $ManualLog = [PSCustomObject]@{
                                         Document_Name = $unmatchedPassword.ITGObject.attributes.name
                                         Field_Name    = "N/A"
-                                        Asset_Type    = $unmatchedPassword.HuduObject.asset_type
+                                        Type          = $unmatchedPassword.HuduObject.asset_type ?? "Asset"
                                         Company_Name  = $unmatchedPassword.HuduObject.company_name
                                         HuduID        = $unmatchedPassword.HuduID
                                         Notes         = "Password could not be related."
@@ -2154,7 +2087,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Passwords.json")) {
                                     $ManualLog = [PSCustomObject]@{
                                         Document_Name = $unmatchedPassword.ITGObject.attributes.name
                                         Field_Name    = "N/A"
-                                        Asset_Type    = $unmatchedPassword.HuduObject.asset_type
+                                        Type           = $unmatchedPassword.HuduObject.asset_type ?? "Asset"
                                         Company_Name  = $unmatchedPassword.HuduObject.company_name
                                         HuduID        = $unmatchedPassword.HuduID
                                         Notes         = "Password could not be related."
@@ -2206,6 +2139,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Passwords.json")) {
                                 passwordable_id   = $ParentItemID
                                 in_portal         = $false
                                 password          = ""
+                                Type              = "Password"
 				                Hudu_URL      	  = $unmatchedPassword.HuduObject.url
                                 ITG_URL           = if ($url = $unmatchedPassword.ITGObject.attributes.url) {$url} Else {$unmatchedPassword.ITGObject.attributes.'resource-url'}
                                 username          = $unmatchedPassword.ITGObject.attributes.username
@@ -2363,141 +2297,37 @@ foreach ($companyFound in $UpdateCompanyNotes.HuduCompanyObject) {
 $companyNotesUpdated | ConvertTo-Json -depth 100 |Out-file "$MigrationLogs\ReplacedCompaniesURL.json"
 Write-TimedMessage -Timeout 3 -Message "Snapshot Point: Company Notes URLs Replaced. Continue?"  -DefaultResponse "continue to Manual Actions, please."
 
-if ($OptionalImageAnchorReplace -eq $true -or $OptionalImageAnchorReplace -eq 1){
+if ($null -eq $OptionalImageAnchorReplace -or $OptionalImageAnchorReplace -eq $true -or $OptionalImageAnchorReplace -eq 1){
     Write-Host "Replacing links to hosted public photos in Hudu Articles"
     if (-not $(get-command -name Set-HuduImageAnchorsReplaced -ErrorAction SilentlyContinue)){. $PSScriptRoot\Public\Set-HuduImageAnchorsReplaced.ps1}
     Get-AllHuduHostedImageAnchorsReplaced -allhuduArticles $(get-huduarticles)
 } else {write-host "skpping image-anchors replace in Hudu articles"}
 
-############################### Generate Manual Actions Report ###############################
-
-$ManualActions | ForEach-Object {
-    if ($_.Hudu_URL -notmatch "http:" -and $_.Hudu_URL -notmatch "https:") {
-        $_.Hudu_URL = "$HuduBaseDomain$($_.Hudu_URL)"
-    }
-}
-
-
-$Head = @"
-<html>
-<head>
-<Title>Manual Actions Required Report</Title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-+0n0xVW2eSR5OomGNYDnhzAbDsOXxcvSN1TPprVMTNDbiYZCxYbOOl7+AMvyTG2x" crossorigin="anonymous">
-<style type="text/css">
-<!–
-body {
-    font-family: Verdana, Geneva, Arial, Helvetica, sans-serif;
-}
-h2{ clear: both; font-size: 100%;color:#354B5E; }
-h3{
-    clear: both;
-    font-size: 75%;
-    margin-left: 20px;
-    margin-top: 30px;
-    color:#475F77;
-}
-table{
-	border-collapse: collapse;
-	margin: 5px 0;
-	font-size: 0.8em;
-	font-family: sans-serif;
-	min-width: 400px;
-	box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
-}
-
-th, td {
-	padding: 5px 5px;
-	max-width: 400px;
-	width:auto;
-}
-thead tr {
-	background-color: #009879;
-	color: #ffffff;
-	text-align: left;
-}
-tr {
-	border-bottom: 1px solid #dddddd;
-}
-tr:nth-of-type(even) {
-	background-color: #f3f3f3;
-}
-->
-</style>
-</head>
-<body>
-<div style="padding:40px">
-
-
-"@
-
-
-$MigrationReport = @"
-<h1> Migration Report </h1>
-Started At: $ScriptStartTime <br />
-Completed At: $(Get-Date -Format "o") <br />
-$(($MatchedCompanies | Measure-Object).count) : Companies Migrated <br />
-$(($MatchedLocations | Measure-Object).count) : Locations Migrated <br />
-$(($MatchedWebsites | Measure-Object).count) : Websites Migrated <br />
-$(($MatchedConfigurations | Measure-Object).count) : Configurations Migrated <br />
-$(($MatchedContacts | Measure-Object).count) : Contacts Migrated <br />
-$(($MatchedLayouts | Measure-Object).count) : Layouts Migrated <br />
-$(($MatchedAssets | Measure-Object).count) : Assets Migrated <br />
-$(($MatchedArticles | Measure-Object).count) : Articles Migrated <br />
-$(($MatchedPasswords | Measure-Object).count) : Passwords Migrated <br />
-If you found this script useful please consider sponsoring me at: <a href=https://github.com/sponsors/lwhitelock?frequency=one-time>https://github.com/sponsors/lwhitelock?frequency=one-time</a>
-<hr>
-<h1>Manual Actions Required Report</h1>
-"@
-
-$footer = "</div></body></html>"
-
-$UniqueItems = $ManualActions | Select-Object huduid, hudu_url -unique
-
-$ManualActionsReport = foreach ($item in $UniqueItems) {
-    $items = $ManualActions | where-object { $_.huduid -eq $item.huduid -and $_.hudu_url -eq $item.Hudu_url }
-    $core_item = $items | Select-Object -First 1
-    $Header = "<h2><strong>Name: $($core_item.Document_Name)</strong></h2>
-				<h2>Type: $($core_item.Asset_Type)</h2>
-				<h2>Company: $($core_item.Company_name)</h2>
-				<h2>Hudu URL: <a href=$($core_item.Hudu_URL)>$($core_item.Hudu_URL)</a></h2>
-				<h2>IT Glue URL: <a href=$($core_item.ITG_URL)>$($core_item.ITG_URL)</a></h2>
-				"
-    $Actions = $items | Select-Object Field_Name, Notes, Action, Data | ConvertTo-Html -fragment | Out-String
-
-    $OutHTML = "$Header $Actions <hr>"
-
-    $OutHTML
-
-}
 
 ############################### Wrap-Up ###############################
-write-host "wrapup 1/10... setting asset layouts as active, enabling advanced website monitoring features"
+write-host "wrapup 1/10... setting asset layouts as active, enabling advanced website monitoring features" -ForegroundColor DarkCyan
 foreach ($layout in Get-HuduAssetLayouts) {write-host "setting $($(Set-HuduAssetLayout -id $layout.id -Active $true).asset_layout.name) as active" }
-$MatchedWebsites.HuduObject | Where-Object {$_.id -and $_.id -gt 0} | Foreach-Object {write-host "Enabling advanced monitoring features for $($(Set-HuduWebsite -id $_.id -EnableDMARC 'true' -EnableDKIM 'true' -EnableSPF 'true' -DisableDNS 'false' -DisableSSL 'false' -DisableWhois 'false' -Paused 'false').name)" -ForegroundColor DarkCyan}
+if ($DisableWebsiteMonitoring) {write-host "leaving websites unmonitored per user-config"} else {$MatchedWebsites.HuduObject | Where-Object {$_.id -and $_.id -gt 0} | Foreach-Object {write-host "Enabling advanced monitoring features for $($(Set-HuduWebsite -id $_.id -EnableDMARC 'true' -EnableDKIM 'true' -EnableSPF 'true' -DisableDNS 'false' -DisableSSL 'false' -DisableWhois 'false' -Paused 'false').name)" -ForegroundColor DarkCyan}}
 write-host "wrapup 2/10... adding attachments (this can take a while)"
 . .\Add-HuduAttachmentsViaAPI.ps1
 
-write-host "wrapup 3/10... adding missing relations (this can take a long while). Some errors may appear but can be safely ignored."
+write-host "wrapup 3/10... adding missing relations (this can take a long while). Some errors may appear but can be safely ignored."  -ForegroundColor DarkCyan
 # set retry to off/false in HuduAPI module, this will save time during adding potentially existent relations.
 if (get-command -name Set-HapiErrorsDirectory -ErrorAction SilentlyContinue){try {Set-HapiErrorsDirectory -skipRetry $true} catch {}}
 . .\Get-MissingRelations.ps1
 
-write-host "wrapup 4/10... archiving passwords, assets, configurations as they had been in ITGlue (this can take a while)"
+write-host "wrapup 4/10... archiving passwords, assets, configurations as they had been in ITGlue (this can take a while)"  -ForegroundColor DarkCyan
 $DocsCsv = import-csv "$ITGLueExportPath\documents.csv"
-$ArchivedPasswords = $MatchedPasswords |? {$_.itgobject.attributes.archived -eq $true}
-$ArchivedConfigurations = $MatchedConfigurations |? {$_.ITGObject.attributes.archived -eq $true}    
-$ArchivedAssets = $MatchedAssets |? {$_.ITGObject.attributes.archived -eq $true}
+$ArchivedPasswords = $MatchedPasswords | Where-Object {$_.itgobject.attributes.archived -eq $true}
+$ArchivedConfigurations = $MatchedConfigurations | Where-Object {$_.ITGObject.attributes.archived -eq $true}    
+$ArchivedAssets = $MatchedAssets | Where-Object {$_.ITGObject.attributes.archived -eq $true}
 
-write-host "wrapup 5/10... archiving items..."
-$ptaresults = $ArchivedPasswords | % {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduPasswordArchive -id $_.huduid -Archive $true}}
-$ctaresults = $ArchivedConfigurations |% {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduAssetArchive -Id $_.huduid -CompanyId $_.huduobject.company_id -Archive $true}}
-$ataresults = $ArchivedAssets |% {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduAssetArchive -Id $_.huduid -CompanyId $_.huduobject.company_id -Archive $true}}
+write-host "wrapup 5/10... archiving items..."  -ForegroundColor DarkCyan
+$ptaresults = $ArchivedPasswords | ForEach-Object {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduPasswordArchive -id $_.huduid -Archive $true}}
+$ctaresults = $ArchivedConfigurations |ForEach-Object {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduAssetArchive -Id $_.huduid -CompanyId $_.huduobject.company_id -Archive $true}}
+$ataresults = $ArchivedAssets |ForEach-Object {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduAssetArchive -Id $_.huduid -CompanyId $_.huduobject.company_id -Archive $true}}
 $documentsForArchive =  $($matchedarticles | Where-Object {@($($($DocsCsv) | Where-Object {$_.archived -ne "No"}) | ForEach-Object {"$($_.id)"}) -contains [string]($_.ITGID)})
-$documentArchiveResults = foreach ($doc in $documentsForArchive) {
-    if ($doc.huduid -and $doc.huduid -gt 0) {
-        Set-HuduArticleArchive -id $doc.huduid -Archive $true -confirm:$false
-    }
-}
+$documentArchiveResults = foreach ($doc in $documentsForArchive) {if ($doc.huduid -and $doc.huduid -gt 0) {Set-HuduArticleArchive -id $doc.huduid -Archive $true -confirm:$false}};
 foreach ($obj in @(
     @{Name = "passwords";       Archived = $ptaresults ?? @() },
     @{Name = "configs";         Archived = $ctaresults ?? @() },
@@ -2534,29 +2364,38 @@ foreach ($auxilliaryObj in @(@{Name = "passwordfolders"; Created = $MatchedPassw
 }
 ############################### End ###############################
 
-$FinalHtml = "$Head $MigrationReport $ManualActionsReport $footer"
-$FinalHtml | Out-File ManualActions.html
 
-Write-Host "#######################################################" -ForegroundColor Green
-Write-Host "#                                                     #" -ForegroundColor Green
-Write-Host "#        IT Glue to Hudu Migration Complete           #" -ForegroundColor Green
-Write-Host "#                                                     #" -ForegroundColor Green
-Write-Host "#######################################################" -ForegroundColor Green
-Write-Host "Started At: $ScriptStartTime"
-Write-Host "Completed At: $(Get-Date -Format "o")"
-Write-Host "$(($MatchedCompanies | Measure-Object).count) : Companies Migrated" -ForegroundColor Green
-Write-Host "$(($MatchedLocations | Measure-Object).count) : Locations Migrated" -ForegroundColor Green
-Write-Host "$(($MatchedWebsites | Measure-Object).count) : Websites Migrated" -ForegroundColor Green
-Write-Host "$(($MatchedConfigurations | Measure-Object).count) : Configurations Migrated" -ForegroundColor Green
-Write-Host "$(($MatchedContacts | Measure-Object).count) : Contacts Migrated" -ForegroundColor Green
-Write-Host "$(($MatchedLayouts | Measure-Object).count) : Layouts Migrated" -ForegroundColor Green
-Write-Host "$(($MatchedAssets | Measure-Object).count) : Assets Migrated" -ForegroundColor Green
-Write-Host "$(($MatchedArticles | Measure-Object).count) : Articles Migrated" -ForegroundColor Green
-Write-Host "$(($MatchedPasswords | Measure-Object).count) : Passwords Migrated" -ForegroundColor Green
+$CompletedAt = Get-Date
+$Duration = New-TimeSpan -Start $ScriptStartTime -End $CompletedAt
+$CompletedAt = Get-Date
+$Duration = $CompletedAt - $ScriptStartTime
 
-Write-Host "#######################################################" -ForegroundColor Green
-Write-Host "Manual Actions report can be found in ManualActions.html in the folder the script was run from"
-Write-Host "Logs of what was migrated can be found in the MigrationLogs folder"
+$migratedItems = [ordered]@{
+    'Companies Migrated'                         = Get-SafeCount $MatchedCompanies
+    'Locations Migrated'                         = Get-SafeCount $MatchedLocations
+    'Websites Migrated'                          = Get-SafeCount $MatchedWebsites
+    'Configurations Migrated'                    = Get-SafeCount $MatchedConfigurations
+    'Contacts Migrated'                          = Get-SafeCount $MatchedContacts
+    'Layouts Migrated'                           = Get-SafeCount $MatchedLayouts
+    'Assets Migrated'                            = Get-SafeCount $MatchedAssets
+    'Articles Migrated'                          = Get-SafeCount $MatchedArticles
+    'Passwords Migrated'                         = Get-SafeCount $MatchedPasswords
+    'Password Folders Migrated'                  = Get-SafeCount $MatchedPasswordFolders
+    'Checklists / Checklist Templates Migrated'  = Get-SafeCount $MatchedChecklists
+    'Relations Created'                          = Get-SafeCount $NewRelationsCreated
+    'IPAM Interfaces/Networks/Addresses Migrated'= Get-SafeCount $MatchedInterfaces
+}
 
-Write-TimedMessage -Message "Press any key to view manual actions" -Timeout 120  -DefaultResponse "continue, view generative Manual Actions webpage, please."
-Start-Process ManualActions.html
+$archivedItems = [ordered]@{
+    'Passwords Archived'       = $ptaresults ?? 0
+    'Configurations Archived'  = $ctaresults ?? 0
+    'Assets Archived'          = $ataresults ?? 0
+    'Documents Archived'       = $documentArchiveResults ?? 0
+}
+$MigrationSummary = "$(Format-MigrationSummary -ScriptStartTime $ScriptStartTime -CompletedAt $CompletedAt -Duration $Duration -DebugFolder ($debugFolder ?? "$PSScriptRoot\debug") -MigrationLogs ($MigrationLogs ?? "$PSScriptRoot\debug\logs") -migratedItems $migratedItems -archivedItems $archivedItems)"
+$MigrationSummary | Out-File -FilePath "$MigrationLogs\MigrationSummary.txt" -Encoding utf8
+Format-ManualActionsReport -ManualActions $ManualActions -OutputPath "$MigrationLogs\ManualActions.html" -summary $MigrationSummary
+Write-Host $MigrationSummary -ForegroundColor DarkCyan
+
+Write-TimedMessage -Message "Press any key to view manual actions" -Timeout 5  -DefaultResponse "continue, view generative Manual Actions webpage, please."
+Start-Process "$MigrationLogs\ManualActions.html"
