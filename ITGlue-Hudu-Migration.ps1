@@ -2536,7 +2536,7 @@ $DocsCsv = import-csv "$ITGLueExportPath\documents.csv"
 $ArchivedPasswords = $MatchedPasswords |? {$_.itgobject.attributes.archived -eq $true}
 $ArchivedConfigurations = $MatchedConfigurations |? {$_.ITGObject.attributes.archived -eq $true}    
 $ArchivedAssets = $MatchedAssets |? {$_.ITGObject.attributes.archived -eq $true}
-$ArchivedDocs = $DocsCsv |? {$_.archived -eq 'yes'}
+$ArchivedDocs = $DocsCsv |? {$_.archived -ne 'No'}
 
 write-host "wrapup 5/10... archiving items..."
 $ptaresults = $ArchivedPasswords | % {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduPasswordArchive -id $_.huduid -Archive $true}}
