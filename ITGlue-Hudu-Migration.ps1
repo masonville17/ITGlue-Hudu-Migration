@@ -2480,15 +2480,11 @@ $ArchivedConfigurations = $MatchedConfigurations |? {$_.ITGObject.attributes.arc
 $ArchivedAssets = $MatchedAssets |? {$_.ITGObject.attributes.archived -eq $true}
 
 write-host "wrapup 5/10... archiving items..."
-$ptaresults = $ArchivedPasswords | % {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduPasswordArchive -id $_.huduid -Archive $true}}
-$ctaresults = $ArchivedConfigurations |% {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduAssetArchive -Id $_.huduid -CompanyId $_.huduobject.company_id -Archive $true}}
-$ataresults = $ArchivedAssets |% {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduAssetArchive -Id $_.huduid -CompanyId $_.huduobject.company_id -Archive $true}}
+$ptaresults = $ArchivedPasswords | ForEach-Object {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduPasswordArchive -id $_.huduid -Archive $true}}
+$ctaresults = $ArchivedConfigurations |ForEach-Object {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduAssetArchive -Id $_.huduid -CompanyId $_.huduobject.company_id -Archive $true}}
+$ataresults = $ArchivedAssets |ForEach-Object {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduAssetArchive -Id $_.huduid -CompanyId $_.huduobject.company_id -Archive $true}}
 $documentsForArchive =  $($matchedarticles | Where-Object {@($($($DocsCsv) | Where-Object {$_.archived -ne "No"}) | ForEach-Object {"$($_.id)"}) -contains [string]($_.ITGID)})
-$documentArchiveResults = foreach ($doc in $documentsForArchive) {
-    if ($doc.huduid -and $doc.huduid -gt 0) {
-        Set-HuduArticleArchive -id $doc.huduid -Archive $true -confirm:$false
-    }
-}
+$DocsCsv = import-csv "$ITGLueExportPath\documents.csv"; $documentArchiveResults = foreach ($doc in $documentsForArchive) {if ($doc.huduid -and $doc.huduid -gt 0) {Set-HuduArticleArchive -id $doc.huduid -Archive $true -confirm:$false}};
 foreach ($obj in @(
     @{Name = "passwords";       Archived = $ptaresults ?? @() },
     @{Name = "configs";         Archived = $ctaresults ?? @() },
