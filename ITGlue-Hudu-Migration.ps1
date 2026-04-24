@@ -2544,7 +2544,7 @@ $ataresults = $ArchivedAssets |% {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduA
 $documentsForArchive =  $($matchedarticles | Where-Object {@($($($DocsCsv) | Where-Object {$_.archived -ne "No"}) | ForEach-Object {"$($_.id)"}) -contains [string]($_.ITGID)})
 $documentArchiveResults = foreach ($doc in $documentsForArchive) {
     if ($doc.huduid -and $doc.huduid -gt 0) {
-        Set-HuduArticleArchive -id $doc.huduid -Archive $true
+        Set-HuduArticleArchive -id $doc.huduid -Archive $true -confirm:$false
     }
 }
 foreach ($obj in @(
