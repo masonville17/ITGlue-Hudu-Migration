@@ -160,3 +160,78 @@ function ChoseBest-ByName {
 return $($choices | ForEach-Object {
 [pscustomobject]@{Choice = $_; Score  = $(Get-SimilaritySafe -a "$Name" -b $(if ([string]::IsNullOrEmpty($prop)){$_} else {$_.$prop}))}} | where-object {$_.Score -ge 0.97} | Sort-Object Score -Descending | select-object -First 1).Choice
 }
+
+function Get-SafeCount {
+    param(
+        [AllowNull()]
+        $InputObject
+    )
+
+    @($InputObject).Count
+}
+
+function Format-MigrationSummary {
+    param(
+        [datetime]$ScriptStartTime,
+        [datetime]$CompletedAt = (Get-Date),
+        [timespan]$Duration,
+
+        [string]$DebugFolder = "$PSScriptRoot\debug",
+        [string]$MigrationLogs = "$PSScriptRoot\debug\logs"
+    )
+
+    $migratedItems = [ordered]@{
+        'Companies Migrated'                         = Get-SafeCount $MatchedCompanies
+        'Locations Migrated'                         = Get-SafeCount $MatchedLocations
+        'Websites Migrated'                          = Get-SafeCount $MatchedWebsites
+        'Configurations Migrated'                    = Get-SafeCount $MatchedConfigurations
+        'Contacts Migrated'                          = Get-SafeCount $MatchedContacts
+        'Layouts Migrated'                           = Get-SafeCount $MatchedLayouts
+        'Assets Migrated'                            = Get-SafeCount $MatchedAssets
+        'Articles Migrated'                          = Get-SafeCount $MatchedArticles
+        'Passwords Migrated'                         = Get-SafeCount $MatchedPasswords
+        'Password Folders Migrated'                  = Get-SafeCount $MatchedPasswordFolders
+        'Checklists / Checklist Templates Migrated'  = Get-SafeCount $MatchedChecklists
+        'Relations Created'                          = Get-SafeCount $NewRelationsCreated
+        'IPAM Interfaces/Networks/Addresses Migrated'= Get-SafeCount $MatchedInterfaces
+    }
+
+    $archivedItems = [ordered]@{
+        'Passwords Archived'       = $ptaresults ?? 0
+        'Configurations Archived'  = $ctaresults ?? 0
+        'Assets Archived'          = $ataresults ?? 0
+        'Documents Archived'       = $documentArchiveResults ?? 0
+    }
+
+    $debugPath = (Resolve-Path -LiteralPath $DebugFolder -ErrorAction SilentlyContinue).Path
+    $logsPath  = (Resolve-Path -LiteralPath $MigrationLogs -ErrorAction SilentlyContinue).Path
+    $manualActionsPath = Join-Path (Resolve-Path .).Path 'ManualActions.html'
+
+    if (-not $debugPath) { $debugPath = $DebugFolder }
+    if (-not $logsPath)  { $logsPath  = $MigrationLogs }
+
+    $lines = [System.Collections.Generic.List[string]]::new()
+
+    $lines.Add('#######################################################')
+    $lines.Add('          IT Glue to Hudu Migration Complete')
+    $lines.Add('#######################################################')
+    $lines.Add("Started At:   $ScriptStartTime")
+    $lines.Add("Completed At: $CompletedAt")
+    $lines.Add("Duration:     $($Duration.ToString('hh\:mm\:ss'))")
+    $lines.Add('-------------------------------------------------------')
+
+    foreach ($item in $migratedItems.GetEnumerator()) {
+        $lines.Add(('{0,6} : {1}' -f $item.Value, $item.Key))
+    }
+
+    $lines.Add('-------------------------------------------------------')
+
+    foreach ($item in $archivedItems.GetEnumerator()) {
+        $lines.Add(('{0,6} : {1}' -f $item.Value, $item.Key))
+    }
+    $lines.Add('#######################################################')
+    $lines.Add("Manual Actions report can be found in $manualActionsPath")
+    $lines.Add("Logs of what was migrated can be found in the $debugPath and $logsPath folders, including snapshots of matched items with and without data that was migrated, and the results of any attempted URL replacements in descriptions and content.")
+
+    $lines -join [Environment]::NewLine
+}

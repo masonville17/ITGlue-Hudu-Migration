@@ -2402,7 +2402,7 @@ th, td {
 	width:auto;
 }
 thead tr {
-	background-color: #009879;
+	background-color: #001498;
 	color: #ffffff;
 	text-align: left;
 }
@@ -2435,7 +2435,6 @@ $(($MatchedLayouts | Measure-Object).count) : Layouts Migrated <br />
 $(($MatchedAssets | Measure-Object).count) : Assets Migrated <br />
 $(($MatchedArticles | Measure-Object).count) : Articles Migrated <br />
 $(($MatchedPasswords | Measure-Object).count) : Passwords Migrated <br />
-If you found this script useful please consider sponsoring me at: <a href=https://github.com/sponsors/lwhitelock?frequency=one-time>https://github.com/sponsors/lwhitelock?frequency=one-time</a>
 <hr>
 <h1>Manual Actions Required Report</h1>
 "@
@@ -2526,37 +2525,10 @@ $FinalHtml | Out-File ManualActions.html
 $CompletedAt = Get-Date
 $Duration = New-TimeSpan -Start $ScriptStartTime -End $CompletedAt
 
-Write-Host @"
-#######################################################
-          IT Glue to Hudu Migration Complete
-#######################################################
-Started At: $ScriptStartTime
-Completed At: $CompletedAt
-Duration: $($Duration.ToString("hh\:mm\:ss"))
--------------------------------------------------------
-$(($MatchedCompanies | Measure-Object).count) : Companies Migrated
-$(($MatchedLocations | Measure-Object).count) : Locations Migrated 
-$(($MatchedWebsites | Measure-Object).count) : Websites Migrated
-$(($MatchedConfigurations | Measure-Object).count) : Configurations Migrated
-$(($MatchedContacts | Measure-Object).count) : Contacts Migrated
-$(($MatchedLayouts | Measure-Object).count) : Layouts Migrated
-$(($MatchedAssets | Measure-Object).count) : Assets Migrated
-$(($MatchedArticles | Measure-Object).count) : Articles Migrated
-$(($MatchedPasswords | Measure-Object).count) : Passwords Migrated
-$($MatchedPasswordFolders.count) : Password Folders Migrated
-$($MatchedChecklists.count) : Checklists / Checklist Templates Migrated
-$($NewRelationsCreated.count) : Relations Created
-$($MatchedInterfaces.count) : IPAM Interfaces/Networks/Addresses Migrated
--------------------------------------------------------
-$($ptaresults) : Passwords Archived
-$($ctaresults) : Configurations Archived
-$($ataresults) : Assets Archived
-$($documentArchiveResults) : Documents Archived
-#######################################################
-Manual Actions report can be found in $($(resolve-path .).path)\ManualActions.html
-Logs of what was migrated can be found in the $($(resolve-path $($debugFolder ?? "$PSScriptRoot\debug")).path) and $($(resolve-path $($MigrationLogs ?? "$PSScriptRoot\debug\logs")).path) folders, including snapshots of matched items with and without data that was migrated, and the results of any attempted URL replacements in descriptions and content.
-"@ -ForegroundColor DarkCyan
+$CompletedAt = Get-Date
+$Duration = $CompletedAt - $ScriptStartTime
 
+Write-Host (Format-MigrationSummary -ScriptStartTime $ScriptStartTime -CompletedAt $CompletedAt -Duration $Duration -DebugFolder ($debugFolder ?? "$PSScriptRoot\debug") -MigrationLogs ($MigrationLogs ?? "$PSScriptRoot\debug\logs")) -ForegroundColor DarkCyan
 
 Write-TimedMessage -Message "Press any key to view manual actions" -Timeout 120  -DefaultResponse "continue, view generative Manual Actions webpage, please."
 Start-Process ManualActions.html
