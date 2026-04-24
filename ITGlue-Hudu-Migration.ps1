@@ -196,16 +196,9 @@ if (Test-Path -Path "$MigrationLogs") {
 # Setup some variables
 $MatchedInterfaces = [System.Collections.ArrayList]@()
 $ManualActions = [System.Collections.ArrayList]@()
-$MergedOrganizationSettings = @{
-    Types        = @()
-    TargetCompany = $null
-}
-$MatchedPasswordFolders = $MatchedPasswordFolders ?? @(); $preloadedPassFolders = $preloadedPassFolders ?? @{};
-$MatchedChecklists = $MatchedChecklists ?? @(); $ITGlueRawChecklists = $ITGlueRawChecklists ?? @(); $ITglueChecklists = $ITglueChecklists ?? [System.Collections.ArrayList]@();
-$ITGlueSSLCerts = @()
-
-$objectFlagMap = $objectFlagMap ?? @{}
-
+$MergedOrganizationSettings = @{Types        = @(); TargetCompany = $null;}
+$MatchedPasswordFolders = $MatchedPasswordFolders ?? @(); $preloadedPassFolders = $preloadedPassFolders ?? @{}; $ITGlueSSLCerts = @(); $objectFlagMap = $objectFlagMap ?? @{};
+$MatchedChecklists = $MatchedChecklists ?? @(); $ITGlueRawChecklists = $ITGlueRawChecklists ?? @(); $ITglueChecklists = $ITglueChecklists ?? [System.Collections.ArrayList]@(); 
 $ErroredItemsFolder = if ($ErroredItemsFolder) {$ErroredItemsFolder} else {(Get-EnsuredPath -path $(join-path $(Resolve-Path .).path "debug"))}
 
 ############################### Companies ###############################
@@ -1658,19 +1651,6 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Assets.json")) {
                                 ITG_URL       = $UpdateAsset.ITGObject.attributes."resource-url"
                             }; $null = $ManualActions.add($ManualLog);
                         }
-                    } elseif ($field.FieldType -eq "Upload") {
-                            $ManualLog = [PSCustomObject]@{
-                                Document_Name = $UpdateAsset.Name
-                                Asset_Type    = $UpdateAsset.HuduObject.asset_type
-                                Company_Name  = $UpdateAsset.HuduObject.company_name
-                                HuduID        = $UpdateAsset.HuduID
-                                Field_Name    = $($field.FieldName)
-                                Notes         = "Uploads not supported"
-                                Action        = "Manually Upload files to Related Files"
-                                Data          = $ITGValues.values -join ","
-                                Hudu_URL      = $UpdateAsset.HuduObject.url
-                                ITG_URL       = $UpdateAsset.ITGObject.attributes."resource-url"
-                            }; $null = $ManualActions.add($ManualLog);
                     } elseif ($field.FieldType -eq "Password") {
                         $ITGPassword = (Get-ITGluePasswords -id $ITGValues -include related_items).data
                         $ITGPasswordValue = ($ITGPasswordsRaw |Where-Object {$_.id -eq $ITGPassword.id}).password
@@ -1808,21 +1788,6 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Articles.json")) {
                 $InFile = ''
                 $html = ''
                 $rawsource = ''
-
-                $ManualLog = [PSCustomObject]@{
-                    Document_Name = $Article.Name
-                    Asset_Type    = "Article"
-                    Company_Name  = $Article.HuduObject.company_name
-                    HuduID        = $Article.HuduID
-                    Field_Name    = "N/A"
-                    Notes         = "Attached Files not Supported"
-                    Action        = "Manually Upload files to Related Files"
-                    Data          = $attachdir.fullname
-                    Hudu_URL      = $Article.HuduObject.url
-                    ITG_URL       = "$ITGURL/$($Article.ITGLocator)"
-                }
-                $null = $ManualActions.add($ManualLog)
-
             }
 
 
@@ -1982,20 +1947,6 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Articles.json")) {
         
             if ($page_out -eq '') {
                 $page_out = 'Empty Document in IT Glue Export - Please Check IT Glue'
-                $ManualLog = [PSCustomObject]@{
-                    Document_Name   = $Article.name
-                    Asset_Type      = 'Article'
-                    Company_Name = $Article.Company.CompanyName
-                    Field_Name	   = 'N/A'
-                    HuduID = $Article.HuduID                    
-                    Notes       = 'Empty Document'
-                    Action	  = 'Validate the document is blank in ITGlue, or manually copy the content across. Note that embedded documents in ITGlue will be migrated in blank with an attachment of the original doc'
-                    Data          = "$InFile"
-                    Hudu_URL = $Article.HuduObject.url
-                    ITG_URL = "$ITGURL/$($Article.ITGLocator)"
-                }
-
-                $null = $ManualActions.add($ManualLog)
             }
 			
 				
@@ -2168,7 +2119,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Passwords.json")) {
                                 }
                                 $null = $ManualActions.add($ManualLog)
                             } else {
-                                Write-Host "Migrated with Asset: $FoundItem.HuduID"
+                                Write-Host "Migrated with Asset: $($FoundItem.HuduID)"
                             }
                         } else {
                             # Check if it needs to link to websites
