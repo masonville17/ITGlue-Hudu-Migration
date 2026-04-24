@@ -1569,7 +1569,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Assets.json")) {
                         if ($Supported -eq $False) {
                             $ManualLog = [PSCustomObject]@{
                                 Document_Name = $UpdateAsset.Name
-                                Asset_Type    = $UpdateAsset.HuduObject.asset_type
+                                Type          = ($UpdateAsset.HuduObject.asset_type ?? "Asset") + " Field - Tag"
                                 Company_Name  = $UpdateAsset.HuduObject.company_name
                                 HuduID        = $UpdateAsset.HuduID
                                 Field_Name    = $($field.FieldName)
@@ -1600,11 +1600,11 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Assets.json")) {
                             Write-Host "Error occured adding field, possible duplicate name" -ForegroundColor Red
                             $ManualLog = [PSCustomObject]@{
                                 Document_Name = $UpdateAsset.Name
-                                Asset_Type    = "Asset Field"
+                                Type          = "Asset Field - Password"
                                 Company_Name  = $UpdateAsset.HuduObject.company_name
                                 HuduID        = $UpdateAsset.HuduID
-                                Field_Name    = "$field.HuduParsedName"
-                                Notes         = "Failed to add password to Asset"
+                                Field_Name    = "$($field.HuduParsedName)"
+                                Notes         = "Failed to add password to Asset with error $_"
                                 Action        = "Manually add the password to the asset"
                                 Data          = ($ITGPassword.attributes.'resource-url' -replace '[^\x09\x0A\x0D\x20-\xD7FF\xE000-\xFFFD\x10000\x10FFFF]')
                                 Hudu_URL      = $UpdateAsset.HuduObject.url
@@ -1768,11 +1768,12 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Articles.json")) {
                             Write-Warning "Unable to validate image file."
                             $ManualLog = [PSCustomObject]@{
                                     Document_Name = $Article.Name
-                                    Asset_Type    = "Article"
                                     Company_Name  = $Article.Company.CompanyName
                                     HuduID        = $Article.HuduID
+                                    Type          = "Article - Image"
+                                    Field_Name    = "Image"
                                     Notes         = 'Missing image, file not found'
-                                    Actions       = "Neither $fullImgPath or $tnImgPath were found, validate the images exist in the export, or retrieve them from ITGlue directly"
+                                    Action        = "Neither $fullImgPath or $tnImgPath were found, validate the images exist in the export, or retrieve them from ITGlue directly"
                                     Data          = "$InFile"
                                     Hudu_URL      = $Article.HuduObject.url
                                     ITG_URL       = "$ITGURL/$($Article.ITGLocator)"
@@ -1798,15 +1799,21 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Articles.json")) {
                                     $UploadImage = New-HuduPublicPhoto -FilePath $imagePath.ToLower() -record_id $Article.HuduID -record_type 'Article'
                                 } catch {
                     # issue during Upload
-                                    Write-ErrorObjectsToFile -ErrorObject @{
-                                        Err = $_
-                                        ImageObject = $imageObject
-                                        ImageLink=$ImgLink
-                                        UploadImage=$UploadImage
-                                        ImageInfo=$imageInfo
-                                        Article=$Article
-                                        Problem="image error during upload"
-                                    } -name "image-upload-err-$($imageInfo.basename)"
+                                    $ManualLog = [PSCustomObject]@{
+                                        Document_Name = $Article.Name
+                                        Type          = "Article - Image"
+                                        Company_Name  = $Article.Company.CompanyName
+                                        HuduID        = $Article.HuduID
+                                        Field_Name    = "Image"
+                                        Action        = "Failed to upload image to Hudu, manually upload and update the article with the new image URL"
+                                        Notes         = 'Failed to upload image to Hudu'
+                                        Data          = $_
+                                        Hudu_URL      = $Article.HuduObject.url
+				                        ITG_URL       = "$ITGURL/$($Article.ITGLocator)"
+                                    }
+                                    Write-ErrorObjectsToFile -ErrorObject $ManualLog -name "image-upload-err-$($imageInfo.basename)"
+                                    $null = $ManualActions.add($ManualLog)
+                                    continue
                                 }
                                 try {                                    
                                     $NewImageURL = $UploadImage.public_photo.url.replace($HuduBaseDomain, '')
@@ -1829,39 +1836,36 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Articles.json")) {
                                     }
                                 } catch {
                     # issue during HTML replace / parse
-                                    Write-ErrorObjectsToFile -ErrorObject @{
-                                        LogEntry        = $ManualLog
-                                        Err             = $_
-                                        ImageObject     = $imageObject
-                                        Problem         = "issue encountered during html image replace."
-                                        ImageLink       = $ImgLink
-                                        ImageInfo       = $imageInfo
-                                        NewImageURL     = $NewImageURL
-                                        Article         = $Article
-                                    } -name "image-err-$($imageInfo.basename)"
-
+                                    $ManualLog = [PSCustomObject]@{
+                                        Document_Name = $Article.Name
+                                        Type          = "Article - Image"
+                                        Company_Name  = $Article.Company.CompanyName
+                                        HuduID        = $Article.HuduID
+                                        Field_Name    = "Image"
+                                        Notes         = "Issue encountered during HTML image replacement."
+                                        Action        = "Manually update the article with the new image URL"
+                                        Data          = "New image URL: $NewImageURL; Error: $_"
+                                        Hudu_URL      = $Article.HuduObject.url
+				                        ITG_URL       = "$ITGURL/$($Article.ITGLocator)"
+                                    }
+                                    Write-ErrorObjectsToFile -ErrorObject $ManualLog -name "image-err-$($imageInfo.basename)"
                                     $null = $ManualActions.add($ManualLog)
                                 }
                             } else {
                     # image not detected by imagemagick
                                 $ManualLog = [PSCustomObject]@{
                                     Document_Name = $Article.Name
-                                    Asset_Type    = "Article"
                                     Company_Name  = $Article.Company.CompanyName
                                     HuduID        = $Article.HuduID
-                                    Notes       = 'Image Not Detected'
-                                    Action         = "$imagePath not detected as image, validate the identified file is an image, or imagemagick modules are loaded"        
-                                    Data = "$InFile"
-                                    Hudu_URL = $Article.HuduObject.url
-				                    ITG_URL = "$ITGURL/$($Article.ITGLocator)"
+                                    Type          = "Article - Image"
+                                    Field_Name    = "Image"
+                                    Notes         = 'Image Not Detected'
+                                    Action        = "$imagePath not detected as image, validate the identified file is an image, or imagemagick modules are loaded"        
+                                    Data          = "$InFile"
+                                    Hudu_URL      = $Article.HuduObject.url
+				                    ITG_URL       = "$ITGURL/$($Article.ITGLocator)"
                                 }
-                                Write-ErrorObjectsToFile -ErrorObject @{
-                                    LogEntry        = $ManualLog
-                                    Article         = $Article
-                                    ImageObject     = $imageObject
-                                    FileName        = $imagePath
-                                    Problem         = "image not detected at '$(Resolve-Path $imagePath)'"
-                                } -name "image-nd-$($imagePath)"
+                                Write-ErrorObjectsToFile -ErrorObject $ManualLog -name "image-nd-$($imagePath)"
                                 $null = $ManualActions.add($ManualLog)
 
                             }
@@ -2037,7 +2041,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Passwords.json")) {
                                 $ManualLog = [PSCustomObject]@{
                                     Document_Name = $FoundItem.name
                                     Field_Name    = $unmatchedPassword.ITGObject.attributes.name
-                                    Asset_Type    = "Asset password field"
+                                    Type          = "Asset password field"
                                     Company_Name  = $unmatchedPassword.ITGObject."organization-name"
                                     HuduID        = $unmatchedPassword.HuduID
                                     Notes         = "Password from FA Field not found."
@@ -2061,7 +2065,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Passwords.json")) {
                                     $ManualLog = [PSCustomObject]@{
                                         Document_Name = $unmatchedPassword.ITGObject.attributes.name
                                         Field_Name    = "N/A"
-                                        Asset_Type    = $unmatchedPassword.HuduObject.asset_type
+                                        Type          = $unmatchedPassword.HuduObject.asset_type ?? "Asset"
                                         Company_Name  = $unmatchedPassword.HuduObject.company_name
                                         HuduID        = $unmatchedPassword.HuduID
                                         Notes         = "Password could not be related."
@@ -2083,7 +2087,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Passwords.json")) {
                                     $ManualLog = [PSCustomObject]@{
                                         Document_Name = $unmatchedPassword.ITGObject.attributes.name
                                         Field_Name    = "N/A"
-                                        Asset_Type    = $unmatchedPassword.HuduObject.asset_type
+                                        Type           = $unmatchedPassword.HuduObject.asset_type ?? "Asset"
                                         Company_Name  = $unmatchedPassword.HuduObject.company_name
                                         HuduID        = $unmatchedPassword.HuduID
                                         Notes         = "Password could not be related."
@@ -2135,6 +2139,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Passwords.json")) {
                                 passwordable_id   = $ParentItemID
                                 in_portal         = $false
                                 password          = ""
+                                Type              = "Password"
 				                Hudu_URL      	  = $unmatchedPassword.HuduObject.url
                                 ITG_URL           = if ($url = $unmatchedPassword.ITGObject.attributes.url) {$url} Else {$unmatchedPassword.ITGObject.attributes.'resource-url'}
                                 username          = $unmatchedPassword.ITGObject.attributes.username

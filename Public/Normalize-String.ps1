@@ -207,6 +207,20 @@ function Format-ManualActionsReport {
         return "<a href=""$safeUrl"" target=""_blank"" rel=""noopener noreferrer"">$safeLabel</a>"
     }
 
+    function Get-ManualActionType {
+        param([AllowNull()]$ManualAction)
+
+        if ($ManualAction -and -not [string]::IsNullOrWhiteSpace($ManualAction.Type)) {
+            return $ManualAction.Type
+        }
+
+        if ($ManualAction -and -not [string]::IsNullOrWhiteSpace($ManualAction.Asset_Type)) {
+            return $ManualAction.Asset_Type
+        }
+
+        return "Unknown"
+    }
+
     $manualActionItems = @($ManualActions | Where-Object { $null -ne $_ })
 
     foreach ($item in $manualActionItems) {
@@ -230,12 +244,12 @@ function Format-ManualActionsReport {
             } |
             Sort-Object {
                 $first = $_.Group | Select-Object -First 1
-                "$($first.Company_name)|$($first.Asset_Type)|$($first.Document_Name)"
+                "$($first.Company_name)|$(Get-ManualActionType $first)|$($first.Document_Name)"
             }
     )
     $recordCount = $groupedItems.Count
     $companyCount = @($manualActionItems | Where-Object { -not [string]::IsNullOrWhiteSpace($_.Company_name) } | Select-Object -ExpandProperty Company_name -Unique).Count
-    $typeCount = @($manualActionItems | Where-Object { -not [string]::IsNullOrWhiteSpace($_.Asset_Type) } | Select-Object -ExpandProperty Asset_Type -Unique).Count
+    $typeCount = @($manualActionItems | ForEach-Object { Get-ManualActionType $_ } | Where-Object { $_ -ne "Unknown" } | Select-Object -Unique).Count
     $generatedAt = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $summaryHtml = ConvertTo-ReportHtml $Summary
 
@@ -497,7 +511,7 @@ function Format-ManualActionsReport {
             $items = @($group.Group)
             $coreItem = $items | Select-Object -First 1
             $documentName = ConvertTo-ReportHtml ($coreItem.Document_Name ?? "Unnamed item")
-            $assetType = ConvertTo-ReportHtml ($coreItem.Asset_Type ?? "Unknown")
+            $itemType = ConvertTo-ReportHtml (Get-ManualActionType $coreItem)
             $companyName = ConvertTo-ReportHtml ($coreItem.Company_name ?? "No company")
             $huduLink = New-ReportLink -Url $coreItem.Hudu_URL -Label "Open in Hudu"
             $itgLink = New-ReportLink -Url $coreItem.ITG_URL -Label "Open in IT Glue"
@@ -506,7 +520,7 @@ function Format-ManualActionsReport {
             [void]$builder.AppendLine('        <div class="action-header">')
             [void]$builder.AppendLine("          <h3>$documentName <span class=""badge"">$($items.Count) action$(if ($items.Count -eq 1) { '' } else { 's' })</span></h3>")
             [void]$builder.AppendLine('          <div class="meta-grid">')
-            [void]$builder.AppendLine("            <div><strong>Type:</strong> $assetType</div>")
+            [void]$builder.AppendLine("            <div><strong>Type:</strong> $itemType</div>")
             [void]$builder.AppendLine("            <div><strong>Company:</strong> $companyName</div>")
             [void]$builder.AppendLine("            <div><strong>Hudu:</strong> $huduLink</div>")
             [void]$builder.AppendLine("            <div><strong>IT Glue:</strong> $itgLink</div>")
