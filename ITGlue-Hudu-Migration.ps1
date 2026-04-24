@@ -171,9 +171,8 @@ if (-not $true -eq $itglueScopeOk -or -not $true -eq $huduScopeOk) {
 
 
 if ($true -eq $allowSettingFlagsAndTypes){. .\Public\Get-UserFlagPreferences.ps1} else {$allowSettingFlagsAndTypes = $false; $flagPasswordsByType = $false; $ObjectFlagMap = @{};}
-# Check if we have a logs folder
 
-if ($backups -ne "Y" -or $backups -ne "y") {
+if ($backups -notin @("Y", "y")) {
     Write-Host "Please take a backup and run the script again"
     exit 1
 }

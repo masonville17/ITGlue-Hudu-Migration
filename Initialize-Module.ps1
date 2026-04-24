@@ -443,20 +443,20 @@ if ($InitType -eq 'Full') {
         "2" {$ScopedMigration = $true}
     }
     ############################## Checklists ##############################
-    while ($importChecklists -notin (1,2)) {$importChecklists = Read-Host "[ADVANCED, default 1/$false] Would you like to import Checklists? (requires web access to ITGlue).`n 1) Yes`n 2) No, Skip Checklists`n(1/2)"}
+    while ($importChecklists -notin (1,2)) {$importChecklists = Read-Host "[ADVANCED] Would you like to import Checklists? (requires web access to ITGlue).`n 1) Yes`n 2) No, Skip Checklists`n(1/2)"}
     switch ($importChecklists) {
-        "2" {$importChecklists = $true}
-        "1" {$importChecklists = $false}
+        "1" {$importChecklists = $true}
+        "2" {$importChecklists = $false}
     }
 
     ############################ PasswordFolders ############################
-    while ($importPasswordFolders -notin (1,2)) {$importPasswordFolders = Read-Host "[default 2/$true] Would you like to import Password Folders? .`n 1) Yes`n 2) No, Skip Password Folders`n(1/2)"}
+    while ($importPasswordFolders -notin (1,2)) {$importPasswordFolders = Read-Host "Would you like to import Password Folders?`n 1) Yes`n 2) No, Skip Password Folders`n(1/2)"}
     switch ($importPasswordFolders) {
-        "2" {$importPasswordFolders = $true; 
+        "1" {$importPasswordFolders = $true; 
             $GlobalPasswordFolderMode =  $GlobalPasswordFolderMode ?? $([bool]$("global" -eq $(Select-ObjectFromList -message "Password folder import mode-" -objects @("global","per-company"))))
             $companyPasswordFolderAttributionMove = $companyPasswordFolderAttributionMove ?? $(if ($true -eq $GlobalPasswordFolderMode) {[bool]$("yes" -eq $(Select-ObjectFromList -message "Password Folders with only one company of passwords- do you want to move those to company-scope password folders? (if you aren't sure, 'yes' is generally a good bet)" -objects @("yes","no")))} else {$false})
         }
-        "1" {$importPasswordFolders = $false; $GlobalPasswordFolderMode = $null; $companyPasswordFolderAttributionMove = $false}
+        "2" {$importPasswordFolders = $false; $GlobalPasswordFolderMode = $null; $companyPasswordFolderAttributionMove = $false}
     }    
 
     ############################## Interfaces ##############################
