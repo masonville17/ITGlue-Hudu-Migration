@@ -246,7 +246,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Companies.json")) {
     }
 
     # Lets confirm it is the correct one
-    Write-Host "Your Internal Company has been matched to: $(($MatchedCompanies | Sort-Object CompanyName | Where-Object {$_.InternalCompany -eq $true} | Select-Object CompanyName).companyname) in IT Glue. $(if ($true -eq $PlaceInternalDocsInInternalCompany){'The documents under this customer will stay in that company in Hudu'} else {'The documents under this customer will be migrated to the Global KB in Hudu'})" -ForegroundColor Green
+    Write-Host "Your Internal Company has been matched to: $(($MatchedCompanies | Sort-Object CompanyName | Where-Object {$_.InternalCompany -eq $true} | Select-Object CompanyName).companyname) in IT Glue. $(if ($true -eq $PlaceInternalDocsInInternalCompany){'The articles under this company will stay in that company in Hudu'} else {'The articles under this company will be migrated to the Global KB in Hudu'})" -ForegroundColor Green
     if ($true -eq $PlaceInternalDocsInInternalCompany){Write-TimedMessage -Message "Internal Company Correct? Press Return to continue or CTRL+C to quit if this is not correct" -Timeout 12 -DefaultResponse "Assuming found match on '$(($MatchedCompanies | Sort-Object CompanyName | Where-Object {$_.InternalCompany -eq $true} | Select-Object CompanyName).companyname)' is correct."}
 
     Write-Host "Matched Companies (Already exist so will not be migrated)"
