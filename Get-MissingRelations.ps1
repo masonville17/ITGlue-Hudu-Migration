@@ -76,6 +76,39 @@ function Add-UnknownITGlueRelationType {
     $script:UnknownITGlueRelationTypeCounts[$TypeName] = 1
     Write-Warning "Encountered unsupported ITGlue relation type '$TypeName'"
 }
+function Add-UnresolvedITGlueRelationSample {
+    param(
+        [string]$TypeName,
+        [string]$Reason,
+        $RelationObject
+    )
+
+    if (-not $settings -or -not $settings.MigrationLogs) {
+        return
+    }
+
+    $TypeName = [string]($TypeName ?? 'unknown')
+    if (-not $script:UnresolvedITGlueRelationSamples) {
+        $script:UnresolvedITGlueRelationSamples = [System.Collections.ArrayList]@()
+        $script:UnresolvedITGlueRelationSampleCounts = @{}
+    }
+
+    $CurrentCount = [int]($script:UnresolvedITGlueRelationSampleCounts[$TypeName] ?? 0)
+    if ($CurrentCount -ge 5) {
+        return
+    }
+
+    $script:UnresolvedITGlueRelationSampleCounts[$TypeName] = $CurrentCount + 1
+    [void]$script:UnresolvedITGlueRelationSamples.Add([pscustomobject]@{
+        TypeName = $TypeName
+        Reason   = $Reason
+        Sample   = $RelationObject
+    })
+
+    $script:UnresolvedITGlueRelationSamples |
+        ConvertTo-Json -Depth 20 |
+        Out-File (Join-Path $settings.MigrationLogs 'unresolved-relation-samples.json')
+}
 function Convert-ITGlueTypeToRelationAssetType {
     param(
         [string]$TypeName
@@ -98,6 +131,19 @@ function Convert-ITGlueTypeToRelationAssetType {
         }
     }
 }
+function Convert-ITGlueTagSubTypeToRelationAssetType {
+    param(
+        [string]$SubType
+    )
+
+    switch -Regex (($SubType ?? '').Trim()) {
+        '^Documents$' { return 'document' }
+        '^Domains$' { return 'domain' }
+        '^Passwords$' { return 'password' }
+        '^Organizations$' { return 'organization' }
+        default { return $null }
+    }
+}
 function Resolve-ITGlueRelationReference {
     param(
         $ITGlueRelationObject
@@ -110,20 +156,51 @@ function Resolve-ITGlueRelationReference {
     $AssetType = $null
     $ResourceId = $null
 
-    if ($ITGlueRelationObject.attributes.'asset-type' -and $ITGlueRelationObject.attributes.'resource-id') {
+    if ($ITGlueRelationObject.type -match '^related[-_]?items?$') {
+        $AssetType = Convert-ITGlueTypeToRelationAssetType -TypeName (
+            $ITGlueRelationObject.attributes.'destination_type' ??
+            $ITGlueRelationObject.attributes.'destination-type' ??
+            $ITGlueRelationObject.attributes.'asset-type' ??
+            $ITGlueRelationObject.attributes.'resource-type'
+        )
+
+        $ResourceId = (
+            $ITGlueRelationObject.attributes.'destination_id' ??
+            $ITGlueRelationObject.attributes.'destination-id' ??
+            $ITGlueRelationObject.attributes.'resource-id'
+        )
+    } elseif ($ITGlueRelationObject.type -eq 'tag') {
+        $AssetType = Convert-ITGlueTypeToRelationAssetType -TypeName (
+            $ITGlueRelationObject.attributes.'destination_type' ??
+            $ITGlueRelationObject.attributes.'destination-type' ??
+            $ITGlueRelationObject.attributes.'tag-type' ??
+            $ITGlueRelationObject.attributes.'taggable-type' ??
+            $ITGlueRelationObject.attributes.'resource-type' ??
+            $ITGlueRelationObject.attributes.'asset-type'
+        )
+
+        $ResourceId = (
+            $ITGlueRelationObject.attributes.'destination_id' ??
+            $ITGlueRelationObject.attributes.'destination-id' ??
+            $ITGlueRelationObject.attributes.'tag-id' ??
+            $ITGlueRelationObject.attributes.'taggable-id' ??
+            $ITGlueRelationObject.attributes.'resource-id'
+        )
+    } elseif ($ITGlueRelationObject.attributes.'asset-type' -and $ITGlueRelationObject.attributes.'resource-id') {
         $AssetType = Convert-ITGlueTypeToRelationAssetType -TypeName $ITGlueRelationObject.attributes.'asset-type'
         $ResourceId = $ITGlueRelationObject.attributes.'resource-id'
-    }
-    elseif ($ITGlueRelationObject.attributes.'destination_type' -and $ITGlueRelationObject.attributes.'destination_id') {
+    } elseif ($ITGlueRelationObject.attributes.'destination_type' -and $ITGlueRelationObject.attributes.'destination_id') {
         $AssetType = Convert-ITGlueTypeToRelationAssetType -TypeName $ITGlueRelationObject.attributes.'destination_type'
         $ResourceId = $ITGlueRelationObject.attributes.'destination_id'
-    }
-    elseif ($ITGlueRelationObject.type -and $ITGlueRelationObject.id) {
+    } elseif ($ITGlueRelationObject.type -and $ITGlueRelationObject.id) {
         $AssetType = Convert-ITGlueTypeToRelationAssetType -TypeName $ITGlueRelationObject.type
         $ResourceId = $ITGlueRelationObject.id
+    } else {
+        $ITGlueRelationObject | convertto-json -Depth 10 | out-file (Join-Path $settings.MigrationLogs "unresolved-relation-$($ITGlueRelationObject.GetHashCode()).json")
     }
 
     if (-not $AssetType -or -not $ResourceId) {
+        Add-UnresolvedITGlueRelationSample -TypeName $ITGlueRelationObject.type -Reason 'Could not resolve target type or id' -RelationObject $ITGlueRelationObject
         return $null
     }
 
@@ -242,7 +319,7 @@ function Test-ITGlueResponseHasRelationData {
         return $true
     }
 
-    if (@($Response.data.relationships.'related-items'.data).Count -gt 0) {
+    if (@($($Response.data.relationships.'related-items' ?? $Response.data.relationships.'related-item').data).Count -gt 0) {
         return $true
     }
 
@@ -341,6 +418,101 @@ function Get-HuduRelationObject {
 
     return $NewHuduRelations
 }
+function Get-HuduRelationObjectFromUnsupportedTagFields {
+    param(
+        $MatchedAssets,
+        $MatchedAssetLayoutFields
+    )
+
+    if (-not $MatchedAssetLayoutFields) {
+        return
+    }
+
+    foreach ($UpdateAsset in $MatchedAssets) {
+        if (-not $UpdateAsset.ITGObject.attributes.traits) { continue }
+
+        $SourceHuduId = Get-SingleRelationValue -Value @(
+            $UpdateAsset.HuduID
+            $UpdateAsset.HuduObject.id
+        ) -Label 'Tag source HuduID'
+
+        if (-not $SourceHuduId) { continue }
+
+        $traits = $UpdateAsset.ITGObject.attributes.traits
+        foreach ($TraitProperty in $traits.PSObject.Properties) {
+            $ITGParsed = $TraitProperty.Name
+            $ITGValues = $TraitProperty.Value
+            $field = $MatchedAssetLayoutFields | Where-Object {
+                $_.IGLayoutID -eq $UpdateAsset.ITGObject.attributes.'flexible-asset-type-id' -and
+                $_.ITGParsedName -eq $ITGParsed
+            } | Select-Object -First 1
+
+            if (-not $field -or $field.FieldType -ne 'Tag') { continue }
+            if ($field.HuduLayoutField.field_type -eq 'AssetTag') { continue }
+
+            $TargetAssetType = Convert-ITGlueTagSubTypeToRelationAssetType -SubType $field.FieldSubType
+            if (-not $TargetAssetType) { continue }
+
+            foreach ($TagValue in @($ITGValues.values)) {
+                $TargetItgId = Get-SingleRelationValue -Value @(
+                    $TagValue.id
+                    $TagValue.'resource-id'
+                    $TagValue.'resource_id'
+                ) -Label "Tag target ITGID for $($field.FieldName)"
+
+                if (-not $TargetItgId) { continue }
+
+                $LinkedHuduItem = Get-HuduIdFromItglueObject -AssetType $TargetAssetType -ITGObjectId $TargetItgId
+                if (-not $LinkedHuduItem) { continue }
+
+                $ToableType = Get-SingleRelationValue -Value $LinkedHuduItem.Type -Label 'Tag ToableType'
+                $ToableID = Get-SingleRelationValue -Value $LinkedHuduItem.HuduObject.id -Label 'Tag ToableID'
+                if (-not $ToableType -or -not $ToableID) { continue }
+
+                [pscustomobject]@{
+                    FromableType = 'Asset'
+                    FromableID   = [int]$SourceHuduId
+                    ToableType   = [string]$ToableType
+                    ToableID     = [int]$ToableID
+                }
+            }
+        }
+    }
+}
+function Convert-QueuedTagRelationToHuduRelationObject {
+    param(
+        $Relation
+    )
+
+    if (-not $Relation) { return }
+
+    $SourceHuduId = Get-SingleRelationValue -Value $Relation.hudu_from_id -Label 'Queued tag source HuduID'
+    if (-not $SourceHuduId) { return }
+
+    $TargetAssetType = switch ($Relation.relation_type) {
+        'Article' { 'document' }
+        'AssetPassword' { 'password' }
+        'Company' { 'organization' }
+        'Website' { 'domain' }
+        default { $null }
+    }
+
+    if (-not $TargetAssetType) { return }
+
+    $LinkedHuduItem = Get-HuduIdFromItglueObject -AssetType $TargetAssetType -ITGObjectId $Relation.itg_to_id
+    if (-not $LinkedHuduItem) { return }
+
+    $ToableType = Get-SingleRelationValue -Value $LinkedHuduItem.Type -Label 'Queued tag ToableType'
+    $ToableID = Get-SingleRelationValue -Value $LinkedHuduItem.HuduObject.id -Label 'Queued tag ToableID'
+    if (-not $ToableType -or -not $ToableID) { return }
+
+    [pscustomobject]@{
+        FromableType = 'Asset'
+        FromableID   = [int]$SourceHuduId
+        ToableType   = [string]$ToableType
+        ToableID     = [int]$ToableID
+    }
+}
 function Get-PasswordDocumentRelationObject {
     param(
         $MatchedPasswords
@@ -374,11 +546,15 @@ function Get-PasswordDocumentRelationObject {
 if (-not $MatchedAssets) {$MatchedAssets = (Get-Content -path "$MigrationLogs\Assets.json" | ConvertFrom-json -depth 100) }
 if (-not $matchedConfigurations) {$matchedConfigurations = (Get-Content -path "$MigrationLogs\Configurations.json" | ConvertFrom-json -depth 100) }
 if (-not $MatchedPasswords) {$MatchedPasswords = (Get-Content -path "$MigrationLogs\Passwords.json" | ConvertFrom-json -depth 100) }
+if (-not $MatchedAssetPasswords -and (Test-Path -LiteralPath "$MigrationLogs\AssetPasswords.json")) {$MatchedAssetPasswords = (Get-Content -path "$MigrationLogs\AssetPasswords.json" | ConvertFrom-json -depth 100) }
 if (-not $MatchedContacts) {$MatchedContacts = (Get-Content -path "$MigrationLogs\Contacts.json" | ConvertFrom-json -depth 100) }
 if (-not $MatchedArticles) {$MatchedArticles = (Get-Content -path "$MigrationLogs\Articles.json" | ConvertFrom-json -depth 100) }
+if (-not $MatchedCompanies) {$MatchedCompanies = (Get-Content -path "$MigrationLogs\Companies.json" | ConvertFrom-json -depth 100) }
 if (-not $MatchedLocations) {$MatchedLocations = (Get-Content -path "$MigrationLogs\Locations.json" | ConvertFrom-json -depth 100) }
 if (-not $MatchedPasswords) {$MatchedPasswords = (Get-Content -path "$MigrationLogs\Passwords.json" | ConvertFrom-json -depth 100) }
 if (-not $MatchedWebsites) {$MatchedWebsites = (Get-Content -path "$MigrationLogs\websites.json" | ConvertFrom-json -depth 100) }
+if (-not $MatchedAssetLayoutFields -and (Test-Path -LiteralPath "$MigrationLogs\AssetLayoutsFields.json")) {$MatchedAssetLayoutFields = (Get-Content -path "$MigrationLogs\AssetLayoutsFields.json" | ConvertFrom-json -depth 100) }
+if (-not $RelationsToCreate -and (Test-Path -LiteralPath "$MigrationLogs\RelationsToCreate.json")) {$RelationsToCreate = (Get-Content -path "$MigrationLogs\RelationsToCreate.json" | ConvertFrom-json -depth 100) }
 
 
 write-host "refreshing $($MatchedAssets.count) assets"
@@ -433,6 +609,7 @@ $MatchedLocations | ForEach-Object { $MatchedLocationMap[[string]$_.ITGID] = $_ 
 write-host "mapping passwords"
 $MatchedPasswordMap = @{}
 $MatchedPasswords | ForEach-Object { $MatchedPasswordMap[[string]$_.ITGID] = $_ }
+$MatchedAssetPasswords | ForEach-Object { $MatchedPasswordMap[[string]$_.ITGID] = $_ }
 
 write-host "mapping websites"
 $MatchedWebsiteMap = @{}
@@ -444,6 +621,8 @@ $ConfigurationRelationsToCreate = Get-HuduRelationObject -ITGlueSourceObjects $R
 $AssetRelationsToCreate = Get-HuduRelationObject -ITGlueSourceObjects $RelatedAssets
 $PasswordRelationsToCreate = Get-HuduRelationObject -ITGlueSourceObjects $RelatedPasswords
 $PasswordDocumentRelationsToCreate = Get-PasswordDocumentRelationObject -MatchedPasswords $MatchedPasswords
+$UnsupportedTagRelationsToCreate = Get-HuduRelationObjectFromUnsupportedTagFields -MatchedAssets $MatchedAssets -MatchedAssetLayoutFields $MatchedAssetLayoutFields
+$QueuedTagRelationsToCreate = $RelationsToCreate | ForEach-Object { Convert-QueuedTagRelationToHuduRelationObject -Relation $_ }
 
 
 
@@ -453,6 +632,8 @@ $AllRelationsToCreate =
     @($ContactRelationsToCreate) +
     @($PasswordRelationsToCreate) +
     @($PasswordDocumentRelationsToCreate) +
+    @($UnsupportedTagRelationsToCreate) +
+    @($QueuedTagRelationsToCreate) +
     @($ConfigurationRelationsToCreate) |
     Where-Object { $_ } |
     Sort-Object FromableType, FromableID, ToableType, ToableID -Unique

@@ -2047,7 +2047,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Passwords.json")) {
                                     Notes         = "Password from FA Field not found."
                                     Action        = "Manually create password"
                                     Data          = "Type: $($unmatchedPassword.ITGObject.attributes.`"resource-type`")"
-                                    Hudu_URL      = $FoundItem.HuduObject.url
+                                    Hudu_URL      = $FoundItem.HuduObject.url ?? $unmatchedPassword.HuduObject.url ?? $company.HuduCompanyObject.url
                                     ITG_URL       = $unmatchedPassword.ITGObject.attributes."parent-url"
                                 }
                                 $null = $ManualActions.add($ManualLog)
@@ -2065,13 +2065,13 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Passwords.json")) {
                                     $ManualLog = [PSCustomObject]@{
                                         Document_Name = $unmatchedPassword.ITGObject.attributes.name
                                         Field_Name    = "N/A"
-                                        Type          = $unmatchedPassword.HuduObject.asset_type ?? "Asset"
-                                        Company_Name  = $unmatchedPassword.HuduObject.company_name
+                                        Type          = $unmatchedPassword.HuduObject.asset_type ?? "Domain Password"
+                                        Company_Name  = $company.CompanyName
                                         HuduID        = $unmatchedPassword.HuduID
-                                        Notes         = "Password could not be related."
+                                        Notes         = "Password could not be related to domain."
                                         Action        = "Manually relate password"
                                         Data          = "Type: $($unmatchedPassword.ITGObject.attributes.`"resource-type`")"
-                                        Hudu_URL      = $unmatchedPassword.HuduObject.url
+                                        Hudu_URL      = $unmatchedPassword.HuduObject.url ?? $company.HuduCompanyObject.url
                                         ITG_URL       = $unmatchedPassword.ITGObject.attributes."parent-url"
                                     }
                                     $null = $ManualActions.add($ManualLog)
@@ -2088,12 +2088,12 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Passwords.json")) {
                                         Document_Name = $unmatchedPassword.ITGObject.attributes.name
                                         Field_Name    = "N/A"
                                         Type           = $unmatchedPassword.HuduObject.asset_type ?? "Asset"
-                                        Company_Name  = $unmatchedPassword.HuduObject.company_name
+                                        Company_Name  = $company.CompanyName
                                         HuduID        = $unmatchedPassword.HuduID
                                         Notes         = "Password could not be related."
                                         Action        = "Manually relate password"
                                         Data          = "Type: $($unmatchedPassword.ITGObject.attributes.`"resource-type`")"
-                                        Hudu_URL      = $unmatchedPassword.HuduObject.url
+                                        Hudu_URL      = $unmatchedPassword.HuduObject.url ?? $company.HuduCompanyObject.url
                                         ITG_URL       = $unmatchedPassword.ITGObject.attributes."parent-url"
                                     }
                                     $null = $ManualActions.add($ManualLog)
