@@ -175,6 +175,6 @@ Write-Host "Please review the matched results below. When you're ready, press En
 $MatchedFromJson
 read-host "If you want to exit without making changes, perform a CTRL+C to stop the script. Otherwise, press Enter to continue with updating Hudu passwords based on the unvaulted passwords from the CSV."
 
-$MatchedFromJJson | Where-Object {$_.MatchedInJson -eq "Yes" -and $_.FoundInCsv -eq "Yes"} | ForEach-Object {Set-HuduPassword -id $_.HuduID -Password $_.UnvaultedPassword}
+$MatchedFromJson | Where-Object {$_.MatchedInJson -eq "Yes" -and $_.FoundInCsv -eq "Yes"} | ForEach-Object {Set-HuduPassword -id $_.HuduID -Password $_.UnvaultedPassword}
 
 write-host "All set- you can repeat for other companies with vaulted passwords." -ForegroundColor Green
