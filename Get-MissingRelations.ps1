@@ -618,29 +618,29 @@ if (-not $RelationsToCreate -and (Test-Path -LiteralPath "$MigrationLogs\Relatio
 if (-not $matchedChecklists -and (Test-Path -LiteralPath "$MigrationLogs\Checklists.json")) {$matchedChecklists = (Get-Content -path "$MigrationLogs\Checklists.json" | ConvertFrom-json -depth 100) }
 
 write-host "refreshing $($MatchedAssets.count) assets"
-$FreshITGAssets= $MatchedAssets |ForEach-Object { Get-ITGlueFlexibleAssets -id $_.ITGObject.id -include related_items}
-$RelatedAssets = $FreshITGAssets | Where-Object { Test-ITGlueResponseHasRelationData -Response $_ }
+$FreshITGAssets= $FreshITGAssets ?? $($MatchedAssets |ForEach-Object { Get-ITGlueFlexibleAssets -id $_.ITGObject.id -include related_items})
+$RelatedAssets = $RelatedAssets ?? $($FreshITGAssets | Where-Object { Test-ITGlueResponseHasRelationData -Response $_ })
 
 write-host "refreshing $($MatchedConfigurations.count) configs"
-$FreshConfigurations = $MatchedConfigurations | ForEach-Object {Get-ITGlueConfigurations -id $_.itgobject.id -include related_items}
-$RelatedConfigurations = $FreshConfigurations | Where-Object { Test-ITGlueResponseHasRelationData -Response $_ }
+$FreshConfigurations = $FreshConfigurations ?? $($MatchedConfigurations | ForEach-Object {Get-ITGlueConfigurations -id $_.itgobject.id -include related_items})
+$RelatedConfigurations = $RelatedConfigurations ?? $($FreshConfigurations | Where-Object { Test-ITGlueResponseHasRelationData -Response $_ })
 
 write-host "refreshing $($MatchedPasswords.count) passwords"
-$FreshPasswords = $MatchedPasswords | ForEach-Object {Get-ITGluePasswords -id $_.itgobject.id -include related_items}
-$RelatedPasswords = $FreshPasswords | Where-Object { Test-ITGlueResponseHasRelationData -Response $_ }
+$FreshPasswords = $FreshPasswords ?? $($MatchedPasswords | ForEach-Object {Get-ITGluePasswords -id $_.itgobject.id -include related_items})
+$RelatedPasswords = $RelatedPasswords ?? $($FreshPasswords | Where-Object { Test-ITGlueResponseHasRelationData -Response $_ })
 
 write-host "refreshing $($MatchedContacts.count) contacts"
-$FreshContacts = $MatchedContacts | ForEach-Object {Get-ITGlueContacts -id $_.ITGObject.id -include related_items}
-$RelatedContacts = $FreshContacts | Where-Object { Test-ITGlueResponseHasRelationData -Response $_ }
+$FreshContacts = $FreshContacts ?? $($MatchedContacts | ForEach-Object {Get-ITGlueContacts -id $_.ITGObject.id -include related_items})
+$RelatedContacts = $RelatedContacts ?? $($FreshContacts | Where-Object { Test-ITGlueResponseHasRelationData -Response $_ })
 
 write-host "refreshing $($MatchedArticles.count) articles"
-$FreshDocuments = $MatchedArticles | ForEach-Object {
+$FreshDocuments = $FreshDocuments ?? ($MatchedArticles | ForEach-Object {
     $ArticleLookup = Get-ArticleLookupInfo -Article $_
     if ($ArticleLookup) {
         Get-RelatedToDoc -DocID $ArticleLookup.DocID -OrganizationId $ArticleLookup.OrganizationId -ITGKey $ITGKey -ITGlue_Base_URI $settings.ITGAPIEndpoint
     }
-}
-$RelatedDocuments = $FreshDocuments | Where-Object { Test-ITGlueResponseHasRelationData -Response $_ }
+})
+$RelatedDocuments = $RelatedDocuments ?? ($FreshDocuments | Where-Object { Test-ITGlueResponseHasRelationData -Response $_ })
 
 write-host "mapping configs"
 $MatchedConfigurationMap = @{}
