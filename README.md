@@ -212,6 +212,21 @@ You can also add multiple source field labels to the SMOOSHLABELS array, which w
 For filling out locationdata fields, just be sure to fill those out as if they were their own fields, even though they are themselves a singular field. 
 For more information on this specific tool, please see [Switching layouts guide](./SwitchingLayouts.md)
 
+## 4. Organizations with Vaulted Passwords
+
+If you have organizations that include vaulted or AES-256-GCM encrypted passwords that require a passphrase to access (not common), you'll need to perform the migration as usual, then run the `Un-Vault-Passwords.ps1` script afterwards in the same session.
+
+If you have many orgs with vaulted passwords, they will each need to be exported on a org-by-org basis from itglue (and can be combined.)
+
+once you have your unvaulted password CSV(s), you can run 
+
+```powershell
+. .\Un-Vault-Passwords.ps1
+```
+
+in the same powershell session. It will prompt you for the path to your unvaulted CSV file (one csv at a time) and will decrypt and update your passwords after verifying the matches with you.
+
+
 # Please Read!
 We use the Magick.NET libraries that you can find here https://github.com/dlemstra/Magick.NET/ for image type validation and metadata building.
 
@@ -223,7 +238,7 @@ These are used only when the image extension was not properly retained in the ex
 
 
 # Known Issues
- - Password Relations to Articles, Password Folders, and SSL Certificates are not currently included
+ - Relations to SSL Certificates are not currently included
 
 Password relations are only available from ITGlue when querying the API directly for each password individually. Since this will increase the runtime of the script by hours or days potentially we have a script to run at the end which will loop through passwords and update the relations at that time. For right now relationships between Passwords and any entity that is not available in the API (SSL Certificates) are completely invisible to this migration script.
 
@@ -239,7 +254,19 @@ This script is run at the very end but is safe to run twice, with the Matched* v
 
 It will save variable: `$RelationsToCreate` that can be used to build relations in Hudu using the `New-HuduRelation` command. Duplicate relations won't be created as it'll throw an error so it's safe to re-run.
 
-## Version 2.x - Well tested but still beta version
+
+___
+- `Replace-HuduBase64Images.ps1` has been updated to use the API and will be fully adapted for fixing completed imports that placed base64 images in articles.
+___
+## Version 1.2
+Small bug fixes
+## Version 1.1
+Small bug fixes
+## Version 2.0.0-beta (historical)
+
+Older documentation referred to a **2.0.0-beta** line; the current **2.x** interactive migration on `main` is the supported path. The notes below still apply to companion utilities.
+
+## Version 2.x - Well tested but still beta version (historical)
 This version of the script brings an interactive migration process, settings will get saved by default to `%APPDATA%\HuduMigration` although they can be moved and then re-imported from a different path after creation.
 
 Settings that will be saved include API Keys, URLs, Prefixes, and so on. You can modify the settings.json file directly as long as you use values that are expected. 
@@ -258,17 +285,6 @@ Settings that will be saved include API Keys, URLs, Prefixes, and so on. You can
 - Archived Assets will be archived even after migration
 - The initialization will prompt for multiple ITGlue domain names and will ATTEMPT (lightly tested) to rewrite ALL of them to the correct Hudu ones.
 
-
-___
-- `Replace-HuduBase64Images.ps1` has been updated to use the API and will be fully adapted for fixing completed imports that placed base64 images in articles.
-___
-## Version 1.2
-Small bug fixes
-## Version 1.1
-Small bug fixes
-## Version 2.0.0-beta (historical)
-
-Older documentation referred to a **2.0.0-beta** line; the current **2.x** interactive migration on `main` is the supported path. The notes below still apply to companion utilities.
 
 ### Replace Base64 Images
 Use this script to replace previous migrations that embedded Base64 images into your articles. If your Hudu is crashing or running out of memory trying to retrieve articles, this will generally fix it. If API isn't sufficient for collecting the articles you can switch to direct database access with an older version of this script.
