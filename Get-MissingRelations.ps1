@@ -119,6 +119,9 @@ function Convert-ITGlueTypeToRelationAssetType {
         '^configurations?$' { return 'configuration' }
         '^passwords?$' { return 'password' }
         '^documents?$' { return 'document' }
+        '^document[/\\]folders?$' { return 'document_folder' }
+        '^document[-_\s]?folders?$' { return 'document_folder' }
+        '^article[-_\s]?folders?$' { return 'document_folder' }
         '^contacts?$' { return 'contact' }
         '^locations?$' { return 'location' }
         '^organizations?$' { return 'organization' }
@@ -228,6 +231,10 @@ function Get-HuduIdFromItglueObject {
             $FoundHuduObject = $MatchedArticleMap[$ITGObjectId].HuduObject
             $FoundHuduAssetType = 'Article'
         }
+        'document_folder' {
+            $FoundHuduObject = $MatchedArticleDocumentFolderMap[$ITGObjectId].HuduObject
+            $FoundHuduAssetType = 'Article'
+        }
         'contact' {
             $FoundHuduObject = $MatchedContactMap[$ITGObjectId].HuduObject
             $FoundHuduAssetType = 'Asset'
@@ -273,6 +280,34 @@ function Get-HuduIdFromItglueObject {
         Write-Warning "Unable to match ITGlue $AssetType to Hudu object for ITG object $ITGObjectId"
     }
 }
+function Get-HuduItemsFromItglueObject {
+    param(
+        $ITGObjectId,
+        $AssetType
+    )
+
+    $ITGObjectId = [string]$ITGObjectId
+
+    if ($AssetType -eq 'document_folder') {
+        $FolderArticles = @($MatchedArticleDocumentFolderMap[$ITGObjectId])
+        if ($FolderArticles.Count -gt 0) {
+            return $FolderArticles | ForEach-Object {
+                [pscustomobject]@{
+                    HuduObject = $_.HuduObject
+                    Type       = 'Article'
+                }
+            }
+        }
+
+        Write-Warning "Unable to match ITGlue document folder to child Hudu articles for ITG folder $ITGObjectId"
+        return
+    }
+
+    $MatchedItem = Get-HuduIdFromItglueObject -ITGObjectId $ITGObjectId -AssetType $AssetType
+    if ($MatchedItem) {
+        return $MatchedItem
+    }
+}
 function Get-SingleRelationValue {
     param(
         $Value,
@@ -289,6 +324,23 @@ function Get-SingleRelationValue {
     }
 
     return $null
+}
+function Get-ITGlueDocumentFolderId {
+    param(
+        $Article,
+        $ITGlueDocumentResponse
+    )
+
+    $FolderId = Get-SingleRelationValue -Value @(
+        $Article.ITGObject.attributes.'document-folder-id'
+        $Article.ITGObject.attributes.'document_folder_id'
+        $ITGlueDocumentResponse.data.attributes.'document-folder-id'
+        $ITGlueDocumentResponse.data.attributes.'document_folder_id'
+    ) -Label 'Document folder ITGID'
+
+    if ($FolderId) {
+        return [string]$FolderId
+    }
 }
 function Get-ArticleLookupInfo {
     param(
@@ -404,8 +456,7 @@ function Get-HuduRelationObject {
             $LinkedReference = Resolve-ITGlueRelationReference -ITGlueRelationObject $LinkedITGlueObject
             if (-not $LinkedReference) { continue }
 
-            $LinkedHuduItem = Get-HuduIdFromItglueObject -AssetType $LinkedReference.AssetType -ITGObjectId $LinkedReference.ResourceId
-            if ($LinkedHuduItem) {
+            foreach ($LinkedHuduItem in @(Get-HuduItemsFromItglueObject -AssetType $LinkedReference.AssetType -ITGObjectId $LinkedReference.ResourceId)) {
                 $FromableType = Get-SingleRelationValue -Value $FromableHudu.type -Label 'FromableType'
                 $FromableID = Get-SingleRelationValue -Value $FromableHudu.HuduObject.id -Label 'FromableID'
                 $ToableType = Get-SingleRelationValue -Value $LinkedHuduItem.type -Label 'ToableType'
@@ -598,6 +649,26 @@ $MatchedConfigurations | ForEach-Object { $MatchedConfigurationMap[[string]$_.IT
 write-host "mapping articles"
 $MatchedArticleMap = @{}
 $MatchedArticles | ForEach-Object { $MatchedArticleMap[[string]$_.ITGID] = $_ }
+
+write-host "mapping article folders"
+$FreshDocumentMap = @{}
+$FreshDocuments | Where-Object { $_ -and $_.data -and $_.data.id } | ForEach-Object {
+    $FreshDocumentMap[[string]$_.data.id] = $_
+}
+
+$MatchedArticleDocumentFolderMap = @{}
+$MatchedArticles | ForEach-Object {
+    $Article = $_
+    $DocumentResponse = $FreshDocumentMap[[string]$Article.ITGID]
+    $DocumentFolderId = Get-ITGlueDocumentFolderId -Article $Article -ITGlueDocumentResponse $DocumentResponse
+    if ($DocumentFolderId) {
+        if (-not $MatchedArticleDocumentFolderMap.ContainsKey($DocumentFolderId)) {
+            $MatchedArticleDocumentFolderMap[$DocumentFolderId] = [System.Collections.ArrayList]@()
+        }
+
+        [void]$MatchedArticleDocumentFolderMap[$DocumentFolderId].Add($Article)
+    }
+}
 
 write-host "mapping contacts"
 $MatchedContactMap = @{}
