@@ -2088,20 +2088,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Passwords.json")) {
                                 if ($ParentItemID) {
                                     Write-Host "Matched to $ParentItemID" -ForegroundColor Green
                                 } else {
-                                    Write-Host "Could not find asset to Match. ParentID: $($unmatchedPassword.ITGObject.attributes.`"resource-id`")"
-                                    $ManualLog = [PSCustomObject]@{
-                                        Document_Name = $unmatchedPassword.ITGObject.attributes.name
-                                        Field_Name    = "N/A"
-                                        Type           = $unmatchedPassword.HuduObject.asset_type ?? "Asset"
-                                        Company_Name  = $company.CompanyName
-                                        HuduID        = $unmatchedPassword.HuduID
-                                        Notes         = "Password could not be related."
-                                        Action        = "Manually relate password"
-                                        Data          = "Type: $($unmatchedPassword.ITGObject.attributes.`"resource-type`")"
-                                        Hudu_URL      = $unmatchedPassword.HuduObject.url ?? $company.HuduCompanyObject.url
-                                        ITG_URL       = $unmatchedPassword.ITGObject.attributes."parent-url"
-                                    }
-                                    $null = $ManualActions.add($ManualLog)
+                                    Write-Host "inter-company password relation will be resolved later."
                                 }
                             }
                         }
@@ -2316,10 +2303,11 @@ if ($DisableWebsiteMonitoring) {write-host "leaving websites unmonitored per use
 write-host "wrapup 2/10... adding attachments (this can take a while)"
 . .\Add-HuduAttachmentsViaAPI.ps1
 
-write-host "wrapup 3/10... adding missing relations (this can take a long while). Some errors may appear but can be safely ignored."  -ForegroundColor DarkCyan
-# set retry to off/false in HuduAPI module, this will save time during adding potentially existent relations.
-if (get-command -name Set-HapiErrorsDirectory -ErrorAction SilentlyContinue){try {Set-HapiErrorsDirectory -skipRetry $true} catch {}}
-. .\Get-MissingRelations.ps1
+write-host "wrapup 3/10... Creating IPAM/Networks and Addresses if user-configured to do so... $($importChecklists)"
+if ($true -eq $ImportConfigInterfaces){
+    write-host "Calculations for addresses can take a while. Please be patient. If it looks like it's stuck, it's just crunching numbers from your $($MatchedConfigurations.count) possible configurations"
+    $MatchedInterfaces = Invoke-HuduConfigurationIPAMSync -MatchedConfigurations $MatchedConfigurations
+}
 
 write-host "wrapup 4/10... archiving passwords, assets, configurations as they had been in ITGlue (this can take a while)"  -ForegroundColor DarkCyan
 $DocsCsv = import-csv "$ITGLueExportPath\documents.csv"
@@ -2353,11 +2341,10 @@ if ($true -eq $importChecklists){
     . .\public\Process-Checklists.ps1
 }
 
-write-host "wrapup 9/10... Creating IPAM/Networks and Addresses if user-configured to do so... $($importChecklists)"
-if ($true -eq $ImportConfigInterfaces){
-    write-host "Calculations for addresses can take a while. Please be patient. If it looks like it's stuck, it's just crunching numbers from your $($MatchedConfigurations.count) possible configurations"
-    $MatchedInterfaces = Invoke-HuduConfigurationIPAMSync -MatchedConfigurations $MatchedConfigurations
-}
+write-host "wrapup 9/10... adding missing relations (this can take a long while). Some errors may appear but can be safely ignored."  -ForegroundColor DarkCyan
+# set retry to off/false in HuduAPI module, this will save time during adding potentially existent relations.
+if (get-command -name Set-HapiErrorsDirectory -ErrorAction SilentlyContinue){try {Set-HapiErrorsDirectory -skipRetry $true} catch {}}
+. .\Get-MissingRelations.ps1
 
 write-host "wrapup 10/10... $(if ($true -eq $allowSettingFlagsAndTypes) {"Setting"} else {"Skipping"}) optional flags and flag types..."
 if ($true -eq $allowSettingFlagsAndTypes){
