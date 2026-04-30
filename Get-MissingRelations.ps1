@@ -124,6 +124,7 @@ function Convert-ITGlueTypeToRelationAssetType {
         '^article[-_\s]?folders?$' { return 'document_folder' }
         '^checklists?$' { return 'checklist' }
         '^checklist[-_\s]?templates?$' { return 'checklist_template' }
+        '^tags?$' { return $null }
         '^contacts?$' { return 'contact' }
         '^locations?$' { return 'location' }
         '^organizations?$' { return 'organization' }
@@ -142,10 +143,20 @@ function Convert-ITGlueTagSubTypeToRelationAssetType {
     )
 
     switch -Regex (($SubType ?? '').Trim()) {
+        '^Configurations$' { return 'configuration' }
+        '^Contacts$' { return 'contact' }
         '^Documents$' { return 'document' }
+        '^Document[-_\s]?Folders$' { return 'document_folder' }
         '^Domains$' { return 'domain' }
+        '^Websites$' { return 'domain' }
         '^Passwords$' { return 'password' }
         '^Organizations$' { return 'organization' }
+        '^Companies$' { return 'organization' }
+        '^Locations$' { return 'location' }
+        '^FlexibleAssetType$' { return 'flexible_asset' }
+        '^Flexible[-_\s]?Assets?$' { return 'flexible_asset' }
+        '^Checklists$' { return 'checklist' }
+        '^Checklist[-_\s]?Templates$' { return 'checklist_template' }
         default { return $null }
     }
 }
@@ -436,6 +447,21 @@ function Test-ITGlueResponseHasRelationData {
 
     return $false
 }
+function Test-ITGlueRelationPointerOnly {
+    param(
+        $ITGlueRelationObject
+    )
+
+    if (-not $ITGlueRelationObject) {
+        return $false
+    }
+
+    if ($ITGlueRelationObject.attributes) {
+        return $false
+    }
+
+    return [bool]($ITGlueRelationObject.id -and $ITGlueRelationObject.type -match '^(related[-_]?items?|tags?)$')
+}
 function Get-PasswordDocumentLookupInfo {
     param(
         $Password
@@ -503,6 +529,8 @@ function Get-HuduRelationObject {
         Write-Host "Determining Hudu objects for source $AssetType / ITGID: $($ITGlueSourceObject.data.id)" -ForegroundColor Cyan
 
         foreach ($LinkedITGlueObject in @($ITGlueSourceObject.included) + @($ITGlueSourceObject.data.relationships.'related-items'.data)) {
+            if (Test-ITGlueRelationPointerOnly -ITGlueRelationObject $LinkedITGlueObject) { continue }
+
             $LinkedReference = Resolve-ITGlueRelationReference -ITGlueRelationObject $LinkedITGlueObject
             if (-not $LinkedReference) { continue }
 
@@ -528,7 +556,7 @@ function Get-HuduRelationObject {
 
     return $NewHuduRelations
 }
-function Get-HuduRelationObjectFromUnsupportedTagFields {
+function Get-HuduRelationObjectFromTagFields {
     param(
         $MatchedAssets,
         $MatchedAssetLayoutFields
@@ -558,7 +586,6 @@ function Get-HuduRelationObjectFromUnsupportedTagFields {
             } | Select-Object -First 1
 
             if (-not $field -or $field.FieldType -ne 'Tag') { continue }
-            if ($field.HuduLayoutField.field_type -eq 'AssetTag') { continue }
 
             $TargetAssetType = Convert-ITGlueTagSubTypeToRelationAssetType -SubType $field.FieldSubType
             if (-not $TargetAssetType) { continue }
@@ -572,18 +599,23 @@ function Get-HuduRelationObjectFromUnsupportedTagFields {
 
                 if (-not $TargetItgId) { continue }
 
-                $LinkedHuduItem = Get-HuduIdFromItglueObject -AssetType $TargetAssetType -ITGObjectId $TargetItgId
-                if (-not $LinkedHuduItem) { continue }
+                $RelationReference = [pscustomobject]@{
+                    AssetType  = $TargetAssetType
+                    ResourceId = [string]$TargetItgId
+                    Name       = [string]$TagValue.name
+                }
 
-                $ToableType = Get-SingleRelationValue -Value $LinkedHuduItem.Type -Label 'Tag ToableType'
-                $ToableID = Get-SingleRelationValue -Value $LinkedHuduItem.HuduObject.id -Label 'Tag ToableID'
-                if (-not $ToableType -or -not $ToableID) { continue }
+                foreach ($LinkedHuduItem in @(Get-HuduItemsFromItglueObject -AssetType $TargetAssetType -ITGObjectId $TargetItgId -RelationReference $RelationReference)) {
+                    $ToableType = Get-SingleRelationValue -Value $LinkedHuduItem.Type -Label 'Tag ToableType'
+                    $ToableID = Get-SingleRelationValue -Value $LinkedHuduItem.HuduObject.id -Label 'Tag ToableID'
+                    if (-not $ToableType -or -not $ToableID) { continue }
 
-                [pscustomobject]@{
-                    FromableType = 'Asset'
-                    FromableID   = [int]$SourceHuduId
-                    ToableType   = [string]$ToableType
-                    ToableID     = [int]$ToableID
+                    [pscustomobject]@{
+                        FromableType = 'Asset'
+                        FromableID   = [int]$SourceHuduId
+                        ToableType   = [string]$ToableType
+                        ToableID     = [int]$ToableID
+                    }
                 }
             }
         }
@@ -604,12 +636,24 @@ function Convert-QueuedTagRelationToHuduRelationObject {
         'AssetPassword' { 'password' }
         'Company' { 'organization' }
         'Website' { 'domain' }
+        'Procedure' { 'checklist' }
         default { $null }
     }
 
     if (-not $TargetAssetType) { return }
 
-    $LinkedHuduItem = Get-HuduIdFromItglueObject -AssetType $TargetAssetType -ITGObjectId $Relation.itg_to_id
+    if ($Relation.relation_type -eq 'Procedure') {
+        $ProcedureObject = $MatchedChecklistsMap[[string]$Relation.itg_to_id].HuduProcedure
+        if ($ProcedureObject) {
+            $LinkedHuduItem = [pscustomobject]@{
+                HuduObject = $ProcedureObject
+                Type       = 'Procedure'
+            }
+        }
+    }
+    else {
+        $LinkedHuduItem = Get-HuduIdFromItglueObject -AssetType $TargetAssetType -ITGObjectId $Relation.itg_to_id
+    }
     if (-not $LinkedHuduItem) { return }
 
     $ToableType = Get-SingleRelationValue -Value $LinkedHuduItem.Type -Label 'Queued tag ToableType'
@@ -777,7 +821,7 @@ $ConfigurationRelationsToCreate = Get-HuduRelationObject -ITGlueSourceObjects $R
 $AssetRelationsToCreate = Get-HuduRelationObject -ITGlueSourceObjects $RelatedAssets
 $PasswordRelationsToCreate = Get-HuduRelationObject -ITGlueSourceObjects $RelatedPasswords
 $PasswordDocumentRelationsToCreate = Get-PasswordDocumentRelationObject -MatchedPasswords $MatchedPasswords
-$UnsupportedTagRelationsToCreate = Get-HuduRelationObjectFromUnsupportedTagFields -MatchedAssets $MatchedAssets -MatchedAssetLayoutFields $MatchedAssetLayoutFields
+$TagFieldRelationsToCreate = Get-HuduRelationObjectFromTagFields -MatchedAssets $MatchedAssets -MatchedAssetLayoutFields $MatchedAssetLayoutFields
 $QueuedTagRelationsToCreate = $RelationsToCreate | ForEach-Object { Convert-QueuedTagRelationToHuduRelationObject -Relation $_ }
 
 $AllRelationsToCreate =
@@ -786,7 +830,7 @@ $AllRelationsToCreate =
     @($ContactRelationsToCreate) +
     @($PasswordRelationsToCreate) +
     @($PasswordDocumentRelationsToCreate) +
-    @($UnsupportedTagRelationsToCreate) +
+    @($TagFieldRelationsToCreate) +
     @($QueuedTagRelationsToCreate) +
     @($ConfigurationRelationsToCreate) |
     Where-Object { $_ } |
