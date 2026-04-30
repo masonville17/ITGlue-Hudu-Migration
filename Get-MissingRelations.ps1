@@ -54,9 +54,6 @@ function Get-RelatedToDoc {
         }
     }
 }
-
-$script:UnknownITGlueRelationTypeCounts = @{}
-
 function Add-UnknownITGlueRelationType {
     param(
         [string]$TypeName
@@ -89,11 +86,6 @@ function Convert-ITGlueTypeToRelationAssetType {
         '^configurations?$' { return 'configuration' }
         '^passwords?$' { return 'password' }
         '^documents?$' { return 'document' }
-        '^document[/\\]folders?$' { return 'document_folder' }
-        '^document[-_\s]?folders?$' { return 'document_folder' }
-        '^article[-_\s]?folders?$' { return 'document_folder' }
-        '^checklists?$' { return 'checklist' }
-        '^checklist[-_\s]?templates?$' { return 'checklist_template' }
         '^contacts?$' { return 'contact' }
         '^locations?$' { return 'location' }
         '^organizations?$' { return 'organization' }
@@ -159,10 +151,6 @@ function Get-HuduIdFromItglueObject {
             $FoundHuduObject = $MatchedArticleMap[$ITGObjectId].HuduObject
             $FoundHuduAssetType = 'Article'
         }
-        'document_folder' {
-            $FoundHuduObject = $MatchedArticleDocumentFolderMap[$ITGObjectId].HuduObject
-            $FoundHuduAssetType = 'Article'
-        }
         'contact' {
             $FoundHuduObject = $MatchedContactMap[$ITGObjectId].HuduObject
             $FoundHuduAssetType = 'Asset'
@@ -186,14 +174,6 @@ function Get-HuduIdFromItglueObject {
         'domain' {
             $FoundHuduObject = $MatchedWebsiteMap[$ITGObjectId].HuduObject
             $FoundHuduAssetType = 'Website'
-        }
-        'checklist' {
-            $FoundHuduObject = $MatchedChecklistsMap[$ITGObjectId].HuduProcedure
-            $FoundHuduAssetType = 'Procedure'
-        }
-        'checklist_template' {
-            $FoundHuduObject = $MatchedChecklistsMap[$ITGObjectId].HuduProcedure
-            $FoundHuduAssetType = 'Procedure'
         }
     }
 
@@ -223,51 +203,6 @@ function Get-SingleRelationValue {
     }
 
     return $null
-}
-function Get-HuduItemsFromItglueObject {
-    param(
-        $ITGObjectId,
-        $AssetType
-    )
-
-    $ITGObjectId = [string]$ITGObjectId
-
-    if ($AssetType -eq 'document_folder') {
-        $FolderArticles = @($MatchedArticleDocumentFolderMap[$ITGObjectId])
-        if ($FolderArticles.Count -gt 0) {
-            return $FolderArticles | ForEach-Object {
-                [pscustomobject]@{
-                    HuduObject = $_.HuduObject
-                    Type       = 'Article'
-                }
-            }
-        }
-
-        Write-Warning "Unable to match ITGlue document folder to child Hudu articles for ITG folder $ITGObjectId"
-        return
-    }
-
-    $MatchedItem = Get-HuduIdFromItglueObject -ITGObjectId $ITGObjectId -AssetType $AssetType
-    if ($MatchedItem) {
-        return $MatchedItem
-    }
-}
-function Get-ITGlueDocumentFolderId {
-    param(
-        $Article,
-        $ITGlueDocumentResponse
-    )
-
-    $FolderId = Get-SingleRelationValue -Value @(
-        $Article.ITGObject.attributes.'document-folder-id'
-        $Article.ITGObject.attributes.'document_folder_id'
-        $ITGlueDocumentResponse.data.attributes.'document-folder-id'
-        $ITGlueDocumentResponse.data.attributes.'document_folder_id'
-    ) -Label 'Document folder ITGID'
-
-    if ($FolderId) {
-        return [string]$FolderId
-    }
 }
 function Get-ArticleLookupInfo {
     param(
@@ -312,21 +247,6 @@ function Test-ITGlueResponseHasRelationData {
     }
 
     return $false
-}
-function Test-ITGlueRelationPointerOnly {
-    param(
-        $ITGlueRelationObject
-    )
-
-    if (-not $ITGlueRelationObject) {
-        return $false
-    }
-
-    if ($ITGlueRelationObject.attributes) {
-        return $false
-    }
-
-    return [bool]($ITGlueRelationObject.id -and $ITGlueRelationObject.type -match '^related[-_]?items?$')
 }
 function Get-PasswordDocumentLookupInfo {
     param(
@@ -395,12 +315,11 @@ function Get-HuduRelationObject {
         Write-Host "Determining Hudu objects for source $AssetType / ITGID: $($ITGlueSourceObject.data.id)" -ForegroundColor Cyan
 
         foreach ($LinkedITGlueObject in @($ITGlueSourceObject.included) + @($ITGlueSourceObject.data.relationships.'related-items'.data)) {
-            if (Test-ITGlueRelationPointerOnly -ITGlueRelationObject $LinkedITGlueObject) { continue }
-
             $LinkedReference = Resolve-ITGlueRelationReference -ITGlueRelationObject $LinkedITGlueObject
             if (-not $LinkedReference) { continue }
 
-            foreach ($LinkedHuduItem in @(Get-HuduItemsFromItglueObject -AssetType $LinkedReference.AssetType -ITGObjectId $LinkedReference.ResourceId)) {
+            $LinkedHuduItem = Get-HuduIdFromItglueObject -AssetType $LinkedReference.AssetType -ITGObjectId $LinkedReference.ResourceId
+            if ($LinkedHuduItem) {
                 $FromableType = Get-SingleRelationValue -Value $FromableHudu.type -Label 'FromableType'
                 $FromableID = Get-SingleRelationValue -Value $FromableHudu.HuduObject.id -Label 'FromableID'
                 $ToableType = Get-SingleRelationValue -Value $LinkedHuduItem.type -Label 'ToableType'
@@ -457,18 +376,10 @@ if (-not $matchedConfigurations) {$matchedConfigurations = (Get-Content -path "$
 if (-not $MatchedPasswords) {$MatchedPasswords = (Get-Content -path "$MigrationLogs\Passwords.json" | ConvertFrom-json -depth 100) }
 if (-not $MatchedContacts) {$MatchedContacts = (Get-Content -path "$MigrationLogs\Contacts.json" | ConvertFrom-json -depth 100) }
 if (-not $MatchedArticles) {$MatchedArticles = (Get-Content -path "$MigrationLogs\Articles.json" | ConvertFrom-json -depth 100) }
-if (-not $MatchedCompanies) {$MatchedCompanies = (Get-Content -path "$MigrationLogs\Companies.json" | ConvertFrom-json -depth 100) }
 if (-not $MatchedLocations) {$MatchedLocations = (Get-Content -path "$MigrationLogs\Locations.json" | ConvertFrom-json -depth 100) }
 if (-not $MatchedPasswords) {$MatchedPasswords = (Get-Content -path "$MigrationLogs\Passwords.json" | ConvertFrom-json -depth 100) }
 if (-not $MatchedWebsites) {$MatchedWebsites = (Get-Content -path "$MigrationLogs\websites.json" | ConvertFrom-json -depth 100) }
-if (-not $MatchedChecklists -and (Test-Path -LiteralPath "$MigrationLogs\Checklists.json")) {$MatchedChecklists = (Get-Content -path "$MigrationLogs\Checklists.json" | ConvertFrom-json -depth 100) }
 
-foreach ($DiagnosticFileName in @('unknown-relation-types.json', 'unresolved-relation-samples.json')) {
-    $DiagnosticFilePath = Join-Path $settings.MigrationLogs $DiagnosticFileName
-    if (Test-Path -LiteralPath $DiagnosticFilePath) {
-        Remove-Item -LiteralPath $DiagnosticFilePath -Force
-    }
-}
 
 write-host "refreshing $($MatchedAssets.count) assets"
 $FreshITGAssets= $MatchedAssets |ForEach-Object { Get-ITGlueFlexibleAssets -id $_.ITGObject.id -include related_items}
@@ -503,26 +414,6 @@ write-host "mapping articles"
 $MatchedArticleMap = @{}
 $MatchedArticles | ForEach-Object { $MatchedArticleMap[[string]$_.ITGID] = $_ }
 
-write-host "mapping article folders"
-$FreshDocumentMap = @{}
-$FreshDocuments | Where-Object { $_ -and $_.data -and $_.data.id } | ForEach-Object {
-    $FreshDocumentMap[[string]$_.data.id] = $_
-}
-
-$MatchedArticleDocumentFolderMap = @{}
-$MatchedArticles | ForEach-Object {
-    $Article = $_
-    $DocumentResponse = $FreshDocumentMap[[string]$Article.ITGID]
-    $DocumentFolderId = Get-ITGlueDocumentFolderId -Article $Article -ITGlueDocumentResponse $DocumentResponse
-    if ($DocumentFolderId) {
-        if (-not $MatchedArticleDocumentFolderMap.ContainsKey($DocumentFolderId)) {
-            $MatchedArticleDocumentFolderMap[$DocumentFolderId] = [System.Collections.ArrayList]@()
-        }
-
-        [void]$MatchedArticleDocumentFolderMap[$DocumentFolderId].Add($Article)
-    }
-}
-
 write-host "mapping contacts"
 $MatchedContactMap = @{}
 $MatchedContacts | ForEach-Object { $MatchedContactMap[[string]$_.ITGID] = $_ }
@@ -546,10 +437,6 @@ $MatchedPasswords | ForEach-Object { $MatchedPasswordMap[[string]$_.ITGID] = $_ 
 write-host "mapping websites"
 $MatchedWebsiteMap = @{}
 $MatchedWebsites | ForEach-Object { $MatchedWebsiteMap[[string]$_.ITGID] = $_ }
-
-write-host "mapping checklists"
-$MatchedChecklistsMap = @{}
-$MatchedChecklists | ForEach-Object { $MatchedChecklistsMap[[string]$_.id] = $_ }
 
 $DocumentRelationsToCreate = Get-HuduRelationObject -ITGlueSourceObjects $RelatedDocuments
 $ContactRelationsToCreate = Get-HuduRelationObject -ITGlueSourceObjects $RelatedContacts
@@ -594,10 +481,4 @@ if ($script:UnknownITGlueRelationTypeCounts -and $script:UnknownITGlueRelationTy
 
     $UnknownRelationTypes | ConvertTo-Json -Depth 10 | Out-File (Join-Path $settings.MigrationLogs 'unknown-relation-types.json')
     Write-Warning "Encountered $($UnknownRelationTypes.Count) unsupported ITGlue relation type(s). Details saved to unknown-relation-types.json"
-}
-else {
-    $UnknownRelationTypesPath = Join-Path $settings.MigrationLogs 'unknown-relation-types.json'
-    if (Test-Path -LiteralPath $UnknownRelationTypesPath) {
-        Remove-Item -LiteralPath $UnknownRelationTypesPath -Force
-    }
 }
