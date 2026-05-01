@@ -37,7 +37,7 @@ Write-Host "#          Date: 01/08/2023                           #" -Foreground
 Write-Host "#                                                     #" -ForegroundColor Yellow
 Write-Host "#                                                     #" -ForegroundColor Yellow
 Write-Host "#                                                     #" -ForegroundColor Yellow
-Write-Host "#         The script will attempt to upload your      #" -ForegroundColor Yellow
+Write-Host "#         The script will attempt to upload your      #" -ForegroundColor Yellowx
 Write-Host "#         files directly to Hudu using the API.       #" -ForegroundColor Yellow
 Write-Host "#         Performance will depend on the Hudu         #" -ForegroundColor Yellow
 Write-Host "#           backend, such as API Limits and WAN       #" -ForegroundColor Yellow
@@ -193,16 +193,15 @@ $filesById = $AttachmentsToUpload | Group-Object { $_.Directory.Name } -AsHashTa
 $FoundLocationsToAttach = $MatchedLocations | Where-Object {$filesById.ContainsKey([string]$_.ITGID)}
 $FoundDocumentsToAttach = $MatchedArticles | Where-Object {$filesById.ContainsKey([string]$_.ITGID)}
 $FoundConfigurationsToAttach = $MatchedConfigurations | Where-Object {$filesById.ContainsKey([string]$_.ITGID)}
-$FoundLocationsToAttach = $MatchedLocations | Where-Object {$filesById.ContainsKey([string]$_.ITGID)}
 $FoundPasswordsToAttach = $MatchedPasswords| Where-Object {$filesById.ContainsKey([string]$_.ITGID)}
+$MatchedAssetsToAttach = $MatchedAssets | Where-Object {$filesById.ContainsKey([string]$_.ITGID)}
 
-
-if ($FoundAssetsToAttach -and $FoundAssetsToAttach.count -gt 0) {Add-HuduAttachment -FoundAssetsToAttach $FoundAssetsToAttach -UploadType "Asset"}
 if ($FoundConfigurationsToAttach -and $FoundConfigurationsToAttach.count -gt 0) {Add-HuduAttachment -FoundAssetsToAttach $FoundConfigurationsToAttach -UploadType "Asset"}
 if ($FoundDocumentsToAttach -and $FoundDocumentsToAttach.count -gt 0) {Add-HuduAttachment -FoundAssetsToAttach $FoundDocumentsToAttach -UploadType "Article"}
-if ($FoundLocationsToAttach -and $FoundLocationsToAttach.count -gt 0) {Add-HuduAttachment -FoundAssetsToAttach $FoundLocationsToAttach -UploadType "Asset"}
 if ($FoundWebsitesToAttach -and $FoundWebsitesToAttach.count -gt 0) {Add-HuduAttachment -FoundAssetsToAttach $FoundWebsitesToAttach -UploadType "Website"}
+if ($FoundLocationsToAttach -and $FoundLocationsToAttach.count -gt 0) {Add-HuduAttachment -FoundAssetsToAttach $FoundLocationsToAttach -UploadType "Asset"}
 if ($FoundPasswordsToAttach -and $FoundPasswordsToAttach.count -gt 0) {Add-HuduAttachment -FoundAssetsToAttach $FoundPasswordsToAttach -UploadType "AssetPassword"}
+if ($MatchedAssetsToAttach -and $MatchedAssetsToAttach.count -gt 0) {Add-HuduAttachment -FoundAssetsToAttach $MatchedAssetsToAttach -UploadType "Asset"}
 
 
 $CSVMapPath = "$MigrationLogs\AttachmentFields-CSVMap.json"
