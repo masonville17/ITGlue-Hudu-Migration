@@ -169,5 +169,6 @@ foreach ($checklist in $ITGLueChecklists) {
         $MatchedChecklists+=$checklist
     }
 }
+$MatchedChecklists | ConvertTo-Json -Depth 99 | Out-File "$MigrationLogs\Checklists.json"
 
 Write-Host "Proceduires and tasks migrated"

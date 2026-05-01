@@ -44,8 +44,6 @@ You'll want to make sure your Hudu instance is prepared for migration and that t
 Items marked with **!** require **JWT** authentication (ITGlue session token from your browser) and are intended for advanced users. Extracting a JWT requires web access and your browser’s developer tools. If you are unsure, skip these options.
 
 ## What the script does not migrate:
-- **Checklist/tag fidelity:** Relations from flexible assets or other fields to checklists or checklist templates are not migrated automatically (those references need manual follow-up).
-- Personal Vault Passwords
 - Permissions (Folders, Companies, Passwords, KBs, etc.)
 - share links- you'll have to enable those on the Hudu side and get the new links shared out.
 
