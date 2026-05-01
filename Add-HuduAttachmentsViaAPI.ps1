@@ -190,18 +190,24 @@ $ITGluePasswords = Get-Content "$MigrationLogs\Passwords.json" | ConvertFrom-jso
 
 $AttachmentsToUpload = Get-ChildItem -Path $AttachmentsPath -Recurse -File
 $filesById = $AttachmentsToUpload | Group-Object { $_.Directory.Name } -AsHashTable -AsString
-$FoundLocationsToAttach = $MatchedLocations | Where-Object {$filesById.ContainsKey([string]$_.ITGID)}
-$FoundDocumentsToAttach = $MatchedArticles | Where-Object {$filesById.ContainsKey([string]$_.ITGID)}
-$FoundConfigurationsToAttach = $MatchedConfigurations | Where-Object {$filesById.ContainsKey([string]$_.ITGID)}
-$FoundPasswordsToAttach = $MatchedPasswords| Where-Object {$filesById.ContainsKey([string]$_.ITGID)}
-$MatchedAssetsToAttach = $MatchedAssets | Where-Object {$filesById.ContainsKey([string]$_.ITGID)}
 
+$FoundConfigurationsToAttach = $MatchedConfigurations | Where-Object {$filesById.ContainsKey([string]$_.ITGID)}
 if ($FoundConfigurationsToAttach -and $FoundConfigurationsToAttach.count -gt 0) {Add-HuduAttachment -FoundAssetsToAttach $FoundConfigurationsToAttach -UploadType "Asset"}
+
+$FoundDocumentsToAttach = $MatchedArticles | Where-Object {$filesById.ContainsKey([string]$_.ITGID)}
 if ($FoundDocumentsToAttach -and $FoundDocumentsToAttach.count -gt 0) {Add-HuduAttachment -FoundAssetsToAttach $FoundDocumentsToAttach -UploadType "Article"}
-if ($FoundWebsitesToAttach -and $FoundWebsitesToAttach.count -gt 0) {Add-HuduAttachment -FoundAssetsToAttach $FoundWebsitesToAttach -UploadType "Website"}
+
+$FoundLocationsToAttach = $MatchedLocations | Where-Object {$filesById.ContainsKey([string]$_.ITGID)}
 if ($FoundLocationsToAttach -and $FoundLocationsToAttach.count -gt 0) {Add-HuduAttachment -FoundAssetsToAttach $FoundLocationsToAttach -UploadType "Asset"}
+
+$FoundPasswordsToAttach = $MatchedPasswords| Where-Object {$filesById.ContainsKey([string]$_.ITGID)}
 if ($FoundPasswordsToAttach -and $FoundPasswordsToAttach.count -gt 0) {Add-HuduAttachment -FoundAssetsToAttach $FoundPasswordsToAttach -UploadType "AssetPassword"}
+
+$MatchedAssetsToAttach = $MatchedAssets | Where-Object {$filesById.ContainsKey([string]$_.ITGID)}
 if ($MatchedAssetsToAttach -and $MatchedAssetsToAttach.count -gt 0) {Add-HuduAttachment -FoundAssetsToAttach $MatchedAssetsToAttach -UploadType "Asset"}
+
+$FoundWebsitesToAttach = $MatchedWebsites | Where-Object {$filesById.ContainsKey([string]$_.ITGID)}
+if ($FoundWebsitesToAttach -and $FoundWebsitesToAttach.count -gt 0) {Add-HuduAttachment -FoundAssetsToAttach $FoundWebsitesToAttach -UploadType "Website"}
 
 
 $CSVMapPath = "$MigrationLogs\AttachmentFields-CSVMap.json"
