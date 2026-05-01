@@ -37,7 +37,7 @@ Write-Host "#          Date: 01/08/2023                           #" -Foreground
 Write-Host "#                                                     #" -ForegroundColor Yellow
 Write-Host "#                                                     #" -ForegroundColor Yellow
 Write-Host "#                                                     #" -ForegroundColor Yellow
-Write-Host "#         The script will attempt to upload your      #" -ForegroundColor Yellowx
+Write-Host "#         The script will attempt to upload your      #" -ForegroundColor Yellow
 Write-Host "#         files directly to Hudu using the API.       #" -ForegroundColor Yellow
 Write-Host "#         Performance will depend on the Hudu         #" -ForegroundColor Yellow
 Write-Host "#           backend, such as API Limits and WAN       #" -ForegroundColor Yellow
@@ -175,21 +175,20 @@ else {
 Write-Host "Starting script in 10 seconds. Press CTRL+C to cancel" -ForegroundColor Yellow
 start-sleep 10
 
-Write-host "Loading Asset Log"
-$ITGlueAssets = Get-Content "$MigrationLogs\Assets.json" | ConvertFrom-json
-Write-host "Loading Articles Log"
-$ITGlueDocuments = Get-Content "$MigrationLogs\Articles.json" | ConvertFrom-json
-Write-host "Loading Configuration Log"
-$ITGlueConfigurations = Get-Content "$MigrationLogs\Configurations.json" | ConvertFrom-json
-Write-Host "Loading Locations Log"
-$ITGlueLocations = Get-Content "$MigrationLogs\Locations.json" | ConvertFrom-json
-Write-Host "Loading Websites Log"
-$ITGlueWebsites = Get-Content "$MigrationLogs\Websites.json" | ConvertFrom-json
-Write-Host "Loading Passwords Log"
-$ITGluePasswords = Get-Content "$MigrationLogs\Passwords.json" | ConvertFrom-json
+if (-not $MatchedAssets) {$MatchedAssets = (Get-Content -path "$MigrationLogs\Assets.json" | ConvertFrom-json -depth 100) }
+if (-not $matchedConfigurations) {$matchedConfigurations = (Get-Content -path "$MigrationLogs\Configurations.json" | ConvertFrom-json -depth 100) }
+if (-not $MatchedPasswords) {$MatchedPasswords = (Get-Content -path "$MigrationLogs\Passwords.json" | ConvertFrom-json -depth 100) }
+if (-not $MatchedContacts) {$MatchedContacts = (Get-Content -path "$MigrationLogs\Contacts.json" | ConvertFrom-json -depth 100) }
+if (-not $MatchedArticles) {$MatchedArticles = (Get-Content -path "$MigrationLogs\Articles.json" | ConvertFrom-json -depth 100) }
+if (-not $MatchedLocations) {$MatchedLocations = (Get-Content -path "$MigrationLogs\Locations.json" | ConvertFrom-json -depth 100) }
+if (-not $MatchedPasswords) {$MatchedPasswords = (Get-Content -path "$MigrationLogs\Passwords.json" | ConvertFrom-json -depth 100) }
+if (-not $MatchedWebsites) {$MatchedWebsites = (Get-Content -path "$MigrationLogs\websites.json" | ConvertFrom-json -depth 100) }
 
 $AttachmentsToUpload = Get-ChildItem -Path $AttachmentsPath -Recurse -File
 $filesById = $AttachmentsToUpload | Group-Object { $_.Directory.Name } -AsHashTable -AsString
+
+$foundContactsToAttach = $MatchedContacts | Where-Object {$filesById.ContainsKey([string]$_.ITGID)}
+if ($foundContactsToAttach -and $foundContactsToAttach.count -gt 0) {Add-HuduAttachment -FoundAssetsToAttach $foundContactsToAttach -UploadType "Asset"}
 
 $FoundConfigurationsToAttach = $MatchedConfigurations | Where-Object {$filesById.ContainsKey([string]$_.ITGID)}
 if ($FoundConfigurationsToAttach -and $FoundConfigurationsToAttach.count -gt 0) {Add-HuduAttachment -FoundAssetsToAttach $FoundConfigurationsToAttach -UploadType "Asset"}
