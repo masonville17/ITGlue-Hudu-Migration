@@ -1711,7 +1711,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Articles.json")) {
 	
     if ($ImportArticles -eq $true) {
         $Attachfiles = Get-ChildItem (Join-Path -Path $ITGLueExportPath -ChildPath "attachments\documents") -recurse
-
+        $ImageMap = $ImageMap ?? @{}
         # Now do the actual work of populating the content of articles
         $ArticleErrors = foreach ($Article in $MatchedArticles) {
 
@@ -1804,6 +1804,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Articles.json")) {
                                 write-verbose "Uploading new/copied ITGlue image $OriginalFullImagePath => $imagePath"
                                 try {
                                     $UploadImage = New-HuduPublicPhoto -FilePath $imagePath.ToLower() -record_id $Article.HuduID -record_type 'Article'
+                                    $ImageMap["$OriginalFullImagePath"] = "$($UploadImage.public_photo.url)"
                                 } catch {
                     # issue during Upload
                                     $ManualLog = [PSCustomObject]@{
@@ -1926,6 +1927,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Articles.json")) {
     }
 
 }
+
 
 ############################### Passwords ###############################
 
