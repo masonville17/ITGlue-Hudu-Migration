@@ -1929,6 +1929,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Articles.json")) {
 }
 
 
+
 ############################### Passwords ###############################
 
 
@@ -2296,6 +2297,8 @@ Write-TimedMessage -Timeout 3 -Message "Snapshot Point: Company Notes URLs Repla
 if ($null -eq $OptionalImageAnchorReplace -or $OptionalImageAnchorReplace -eq $true -or $OptionalImageAnchorReplace -eq 1){
     Write-Host "Replacing links to hosted public photos in Hudu Articles"
     if (-not $(get-command -name Set-HuduImageAnchorsReplaced -ErrorAction SilentlyContinue)){. $PSScriptRoot\Public\Set-HuduImageAnchorsReplaced.ps1}
+    . $PSScriptRoot\Public\Replace-HardCodedImages.ps1
+    
     Get-AllHuduHostedImageAnchorsReplaced -allhuduArticles $(get-huduarticles)
 } else {write-host "skpping image-anchors replace in Hudu articles"}
 

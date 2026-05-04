@@ -47,7 +47,7 @@ foreach ($Article in $HardcodedImagesArticles) {
 
         Set-HuduArticle `
             -Id $Article.id `
-            -Name $Article.name `
+            -CompanyId $Article.company_id `
             -Content $NewContent
     }
 }
