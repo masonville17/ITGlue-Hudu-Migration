@@ -9,7 +9,10 @@ function Get-ITGPasswordFolders {
 
         [switch]$ComputePaths,
 
-        [string]$Separator = '/'
+        [string]$Separator = '/',
+
+        [ValidateRange(1, 1000)]
+        [int]$PageSize = 1000
     )
 
     if (-not $script:ITGlue_Base_URI -or [string]::IsNullOrWhiteSpace($script:ITGlue_Base_URI)) {
@@ -26,14 +29,44 @@ function Get-ITGPasswordFolders {
     # ->
     #x-api-key: {{api-token}}
     $headers = @{ "x-api-key" = "$ITGKey" }
-    $uri = $script:ITGlue_Base_URI + $resource_uri
+    function New-ITGPasswordFolderUri {
+        param(
+            [string]$BaseUri,
+            [string]$ResourceUri,
+            [int]$PageNumber,
+            [int]$PageSize
+        )
+
+        $query = @(
+            ('{0}={1}' -f [uri]::EscapeDataString('page[size]'), $PageSize)
+            ('{0}={1}' -f [uri]::EscapeDataString('page[number]'), $PageNumber)
+        ) -join '&'
+
+        return "$BaseUri$ResourceUri`?$query"
+    }
 
     $folders = @()
+    $page = 1
+    $totalPages = $null
     try {
-        $resp = Invoke-RestMethod -Method GET -Uri $uri -Headers $headers
-        if ($resp -and $resp.data) { $folders = $resp.data }
+        do {
+            $uri = New-ITGPasswordFolderUri -BaseUri $script:ITGlue_Base_URI -ResourceUri $resource_uri -PageNumber $page -PageSize $PageSize
+            $resp = Invoke-RestMethod -Method GET -Uri $uri -Headers $headers -ErrorAction Stop
+            $data = if ($resp -and $resp.data) { @($resp.data) } else { @() }
+            if ($data.Count -gt 0) { $folders += $data }
+
+            if ($null -eq $totalPages -and $resp.meta -and $resp.meta.pagination) {
+                $totalPagesRaw = $resp.meta.pagination.'total-pages' ?? $resp.meta.pagination.total_pages
+                if ($totalPagesRaw) { $totalPages = [int]$totalPagesRaw }
+            }
+
+            $page++
+        } while (
+            ($totalPages -and $page -le $totalPages) -or
+            (-not $totalPages -and $data.Count -eq $PageSize)
+        )
     } catch {
-        Write-Error "Failed to retrieve ITGlue password folders: $($_.Exception.Message)"
+        Write-Error "Failed to retrieve ITGlue password folders on page $page`: $($_.Exception.Message)"
         return
     }
 

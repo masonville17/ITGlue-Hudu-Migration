@@ -2391,15 +2391,15 @@ $migratedItems = [ordered]@{
     'Checklists / Checklist Templates Migrated'  = Get-SafeCount $MatchedChecklists
     'Relations Created'                          = Get-SafeCount $NewRelationsCreated
     'IPAM Interfaces/Networks/Addresses Migrated'= Get-SafeCount $MatchedInterfaces
-    'Upload Fields Migrated'                     = Get-SafeCount $MatchedUploadFields
-    'Upload Fields Unresolved'                   = Get-SafeCount $UnresolvedUploadFields
+    'Upload Fields Migrated'                     = $MatchedUploadFields.count ?? 0
+    'Upload Fields Unresolved'                   = $UnresolvedUploadFields.count ?? 0
 }
 
 $archivedItems = [ordered]@{
-    'Passwords Archived'       = $ptaresults ?? 0
-    'Configurations Archived'  = $ctaresults ?? 0
-    'Assets Archived'          = $ataresults ?? 0
-    'Documents Archived'       = $documentArchiveResults ?? 0
+    'Passwords Archived'       = $ptaresults.count ?? 0
+    'Configurations Archived'  = $ctaresults.count ?? 0
+    'Assets Archived'          = $ataresults.count ?? 0
+    'Documents Archived'       = $documentArchiveResults.count ?? 0
 }
 $MigrationSummary = "$(Format-MigrationSummary -ScriptStartTime $ScriptStartTime -CompletedAt $CompletedAt -Duration $Duration -DebugFolder ($debugFolder ?? "$PSScriptRoot\debug") -MigrationLogs ($MigrationLogs ?? "$PSScriptRoot\debug\logs") -migratedItems $migratedItems -archivedItems $archivedItems)"
 $MigrationSummary | Out-File -FilePath "$MigrationLogs\MigrationSummary.txt" -Encoding utf8
