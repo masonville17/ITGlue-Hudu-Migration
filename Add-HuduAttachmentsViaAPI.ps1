@@ -209,6 +209,14 @@ $FoundWebsitesToAttach = $MatchedWebsites | Where-Object {$filesById.ContainsKey
 if ($FoundWebsitesToAttach -and $FoundWebsitesToAttach.count -gt 0) {Add-HuduAttachment -FoundAssetsToAttach $FoundWebsitesToAttach -UploadType "Website"}
 
 
+$UploadFieldsArePresent = $UploadFieldsArePresent ?? $true
+if ($true -eq $UploadFieldsArePresent){
+    Write-Host "One or more Upload fields were present on the assets or we couldnt determine their presence. These will be uploaded now." -ForegroundColor Yellow
+    . "$($(get-childitem -path "." -Recurse -file "Add-UploadFieldAttachments.ps1" | Select-Object -first 1).fullname)"
+
+}
+
+
 $CSVMapPath = "$MigrationLogs\AttachmentFields-CSVMap.json"
 if (-not (Test-Path $CSVMapPath)) {write-host "no optional CSV map found at $CSVMapPath. Attachments complete!"; exit}
 

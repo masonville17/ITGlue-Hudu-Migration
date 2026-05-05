@@ -1434,6 +1434,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\AssetLayouts.json")) 
 
 ############################### Flexible Assets ###############################
 #Check for Assets Resume
+$UploadFieldsArePresent = $false
 if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Assets.json")) {
     Write-Host "Loading Previous Asset Migration"
     $MatchedAssets = Get-Content "$MigrationLogs\Assets.json" -raw | Out-String | ConvertFrom-Json -depth 100
@@ -1630,6 +1631,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Assets.json")) {
                         $coerced = Get-CastIfNumeric ($_.value -replace '[^\x09\x0A\x0D\x20-\xD7FF\xE000-\xFFFD\x10000\x10FFFF]')
                         $null = $AssetFields.add("$($field.HuduParsedName)", [string]"$coerced")
                     } elseif ($field.FieldType -ieq "Upload") {
+                        $UploadFieldsArePresent = $true
                         continue
                     } else {
                         $null = $AssetFields.add("$($field.HuduParsedName)", [string]"$($_.value)")
@@ -1646,6 +1648,9 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Assets.json")) {
 
             $UpdateAsset.HuduObject = $UpdatedHuduAsset
             $UpdateAsset.Imported = "Created-By-Script"
+        }
+        if ($true -eq $UploadFieldsArePresent){
+            Write-Host "One or more Upload fields were present on the assets, they will be processed during wrap-up" -ForegroundColor Yellow
         }
 
 
@@ -2358,7 +2363,10 @@ if ($true -eq $allowSettingFlagsAndTypes){
     . .\public\Add-HuduFlagsFlagtypes.ps1
 }
 
-foreach ($auxilliaryObj in @(@{Name = "passwordfolders"; Created = $MatchedPasswordFolders ?? @() }, @{Name = "checklists"; Created = $MatchedChecklists ?? @() }, @{Name="Interfaces-IPAM"; Created = ($MatchedInterfaces ?? @())})) {
+$MatchedUploadFields = $MatchedUploadFields ?? @{}
+$UnresolvedUploadFields = $UnresolvedUploadFields ?? @{}
+foreach ($auxilliaryObj in @(@{Name = "passwordfolders"; Created = $MatchedPasswordFolders ?? @() }, @{Name="UploadFields"; Created = $MatchedUploadFields ?? @() }, @{Name="UnresolvedUploadFields"; Created = $UnresolvedUploadFields ?? @() }, @{Name = "checklists"; Created = $MatchedChecklists ?? @() }, @{Name="Interfaces-IPAM"; Created = ($MatchedInterfaces ?? @())})) {
+    write-host "Writing json dump for $($auxilliaryObj.Name) created during migration for reference in manual actions and for audit purposes"
     $auxilliaryObj.Created | ConvertTo-Json -depth 75 | Out-File $(join-path $settings.MigrationLogs "created-$($auxilliaryObj.Name).json")
 }
 ############################### End ###############################
@@ -2383,13 +2391,15 @@ $migratedItems = [ordered]@{
     'Checklists / Checklist Templates Migrated'  = Get-SafeCount $MatchedChecklists
     'Relations Created'                          = Get-SafeCount $NewRelationsCreated
     'IPAM Interfaces/Networks/Addresses Migrated'= Get-SafeCount $MatchedInterfaces
+    'Upload Fields Migrated'                     = $MatchedUploadFields.count ?? 0
+    'Upload Fields Unresolved'                   = $UnresolvedUploadFields.count ?? 0
 }
 
 $archivedItems = [ordered]@{
-    'Passwords Archived'       = $ptaresults ?? 0
-    'Configurations Archived'  = $ctaresults ?? 0
-    'Assets Archived'          = $ataresults ?? 0
-    'Documents Archived'       = $documentArchiveResults ?? 0
+    'Passwords Archived'       = $ptaresults.count ?? 0
+    'Configurations Archived'  = $ctaresults.count ?? 0
+    'Assets Archived'          = $ataresults.count ?? 0
+    'Documents Archived'       = $documentArchiveResults.count ?? 0
 }
 $MigrationSummary = "$(Format-MigrationSummary -ScriptStartTime $ScriptStartTime -CompletedAt $CompletedAt -Duration $Duration -DebugFolder ($debugFolder ?? "$PSScriptRoot\debug") -MigrationLogs ($MigrationLogs ?? "$PSScriptRoot\debug\logs") -migratedItems $migratedItems -archivedItems $archivedItems)"
 $MigrationSummary | Out-File -FilePath "$MigrationLogs\MigrationSummary.txt" -Encoding utf8

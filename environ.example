@@ -93,7 +93,10 @@ $NonInteractive             = 2
 $importPasswordFolders      = 2
 $importChecklists           = 1
 $GlobalPasswordFolderMode = $true # or $false
-$companyPasswordFolderAttributionMove = $null # $false or $true- If using global password folders mode, this effectively allows for password folders that only have passwords for one company localized to that compoany or de-globalized
+$PasswordFolderNameDelimiter = " - " # seperator when concatenating folders in squashed / flattened password folder
+$FolderNamingMode = "Name Based on Full Path with Delimiter" # how to name the password folders which get flattened in hudu.
+                    # "Name Based on Root-Level-Directory"
+                    # "Name Based on Current/Leaf-Level Directory"
 
 # If you want to scope migration to just come companies, select 2, otherwise leave at 1 for typical, full migration
 $ScopedMigration            = 1
