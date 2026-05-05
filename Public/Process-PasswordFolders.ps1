@@ -11,6 +11,9 @@ if (-not $MatchedCompanies -or $matchedCompanies.count -lt 1){
     return
 } 
 
+$FolderNamingMode = $FolderNamingMode ?? $($(Select-ObjectFromList -message "Since Hudu doesnt support multiple password folder layers, would you like to do one of the following?" -objects @("Name Based on Root-Level-Directory","Name Based on Full Path with Delimiter","Name Based on topmost level")))
+
+
 # $PFMappings["Software &"]="Software & Applications"
 # $PFMappings["Software and"]="Software & Applications"
 
@@ -75,7 +78,13 @@ foreach ($itgcompanyID in ($matchedpasswords.ITGObject.attributes.'organization-
     foreach ($passwordFolder in $foldersWithPasswords) {
         $companyError = $null; $folderError = $null; $passwordError = $null; $Modified = $false; $existingpass = $null;
         
-        $FolderName = ($passwordFolder.path -split "<FDELIM>") -join " - "
+        if ($FolderNamingMode -eq "Name Based on Root-Level-Directory") {
+            $FolderName = ($passwordFolder.path -split "<FDELIM>")[0]
+        } elseif ($FolderNamingMode -eq "Name Based on Full Path with Delimiter") {
+            $FolderName = ($passwordFolder.path -split "<FDELIM>") -join " - "
+        } else {
+            $FolderName = ($passwordFolder.path -split "<FDELIM>")[-1]
+        }
         $match = $null
         $match = $PFMappings.Keys | Sort-Object { $_.Length } -Descending | Where-Object { $FolderName.StartsWith($_, [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
         if ($match) {
