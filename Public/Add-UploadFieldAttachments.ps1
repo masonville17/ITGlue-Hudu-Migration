@@ -187,6 +187,9 @@ foreach ($UploadAsset in $MatchedAssets | Where-Object { $_.HuduID -and $_.HuduI
             (Get-ITGAttachmentMatch -ExpectedName $filename -ExpectedSize $expectedSize -UrlParts $parts -UploadAsset $UploadAsset -Candidates $AllUploadCandidateFiles)
 
         $matchedFile = $match.File
+        $newUpload = New-HuduUpload -uploadable_id $UploadAsset.HuduID -filePath $matchedFile.FullName -uploadable_type "Asset"
+        $newUpload = $newUpload.upload ?? $newUpload
+
 
         if ($matchedFile) {
             $MatchedUploadFields["$($UploadAsset.HuduID):$name"] = @{
@@ -196,6 +199,7 @@ foreach ($UploadAsset in $MatchedAssets | Where-Object { $_.HuduID -and $_.HuduI
                 ITGFileUrl  = $value.url
                 ITGFileName = $filename
                 MatchScore  = $match.Score
+                Upload      = $newUpload
             }
         }
         else {

@@ -1434,6 +1434,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\AssetLayouts.json")) 
 
 ############################### Flexible Assets ###############################
 #Check for Assets Resume
+$UploadFieldsArePresent = $false
 if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Assets.json")) {
     Write-Host "Loading Previous Asset Migration"
     $MatchedAssets = Get-Content "$MigrationLogs\Assets.json" -raw | Out-String | ConvertFrom-Json -depth 100
@@ -1630,6 +1631,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Assets.json")) {
                         $coerced = Get-CastIfNumeric ($_.value -replace '[^\x09\x0A\x0D\x20-\xD7FF\xE000-\xFFFD\x10000\x10FFFF]')
                         $null = $AssetFields.add("$($field.HuduParsedName)", [string]"$coerced")
                     } elseif ($field.FieldType -ieq "Upload") {
+                        $UploadFieldsArePresent = $true
                         continue
                     } else {
                         $null = $AssetFields.add("$($field.HuduParsedName)", [string]"$($_.value)")
@@ -1646,6 +1648,9 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Assets.json")) {
 
             $UpdateAsset.HuduObject = $UpdatedHuduAsset
             $UpdateAsset.Imported = "Created-By-Script"
+        }
+        if ($true -eq $UploadFieldsArePresent){
+            Write-Host "One or more Upload fields were present on the assets, they will be processed during wrap-up" -ForegroundColor Yellow
         }
 
 
