@@ -6,12 +6,52 @@ $PFMappings = $PFMappings ?? @{}
 $ITGPasswordFolders =  @{}; $MatchedPasswordFolders = @()
 $GlobalPasswordFolderMode = $GlobalPasswordFolderMode ?? $([bool]$("global" -eq $(Select-ObjectFromList -message "Password folder import mode-" -objects @("global","per-company"))))
 $PWFPageSize = $PWFPageSize ?? 250
+$PasswordFolderPathDelimiter = $PasswordFolderPathDelimiter ?? "<FDELIM>"
+$PasswordFolderNameDelimiter = $PasswordFolderNameDelimiter ?? " - "
 if (-not $MatchedCompanies -or $matchedCompanies.count -lt 1){
     write-host "Can't preload password folders without matched companies, skipping preload of password folders."
     return
 } 
 
-$FolderNamingMode = $FolderNamingMode ?? $($(Select-ObjectFromList -message "Since Hudu doesnt support multiple password folder layers, would you like to do one of the following?" -objects @("Name Based on Root-Level-Directory","Name Based on Full Path with Delimiter","Name Based on topmost level")))
+$FolderNamingMode = [string]($FolderNamingMode ?? $(Select-ObjectFromList -message "Since Hudu doesnt support multiple password folder layers, would you like to do one of the following?" -objects @("Name Based on Root-Level-Directory","Name Based on Full Path with Delimiter","Name Based on Current/Leaf-Level Directory")))
+
+function Get-HuduPasswordFolderNameFromPath {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+
+        [Parameter(Mandatory)]
+        [string]$Mode,
+
+        [Parameter(Mandatory)]
+        [string]$PathDelimiter,
+
+        [Parameter(Mandatory)]
+        [string]$NameDelimiter
+    )
+
+    $parts = @("$Path" -split [regex]::Escape($PathDelimiter)) |
+        ForEach-Object { "$_".Trim() } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+    if ($parts.Count -eq 0) { return "" }
+
+    switch ($Mode) {
+        "Name Based on Root-Level-Directory" {
+            return $parts[0]
+        }
+        "Name Based on Full Path with Delimiter" {
+            return ($parts -join $NameDelimiter)
+        }
+        { $_ -in @("Name Based on Current/Leaf-Level Directory", "Name Based on topmost level") } {
+            return $parts[-1]
+        }
+        default {
+            Write-Warning "Unknown password folder naming mode '$Mode'. Using full path with delimiter."
+            return ($parts -join $NameDelimiter)
+        }
+    }
+}
 
 
 # $PFMappings["Software &"]="Software & Applications"
@@ -58,7 +98,7 @@ foreach ($itgcompanyID in ($matchedpasswords.ITGObject.attributes.'organization-
     }
     # 2) Get folders for this org (paths already computed)
     $passwordFolderArray = $null
-    $passwordFolderArray = Get-ITGPasswordFolders -ITGKEY $ITGKey -organization_id $itgcompanyID -ComputePaths -Separator "<FDELIM>" -PageSize $PWFPageSize
+    $passwordFolderArray = Get-ITGPasswordFolders -ITGKEY $ITGKey -organization_id $itgcompanyID -ComputePaths -Separator $PasswordFolderPathDelimiter -PageSize $PWFPageSize
     
     if (-not $passwordFolderArray -or $passwordFolderArray.Count -eq 0) {
         Write-Host "No password folders for company $itgcompanyID — skipping."
@@ -78,13 +118,7 @@ foreach ($itgcompanyID in ($matchedpasswords.ITGObject.attributes.'organization-
     foreach ($passwordFolder in $foldersWithPasswords) {
         $companyError = $null; $folderError = $null; $passwordError = $null; $Modified = $false; $existingpass = $null;
         
-        if ($FolderNamingMode -eq "Name Based on Root-Level-Directory") {
-            $FolderName = ($passwordFolder.path -split "<FDELIM>")[0]
-        } elseif ($FolderNamingMode -eq "Name Based on Full Path with Delimiter") {
-            $FolderName = ($passwordFolder.path -split "<FDELIM>") -join " - "
-        } else {
-            $FolderName = ($passwordFolder.path -split "<FDELIM>")[-1]
-        }
+        $FolderName = Get-HuduPasswordFolderNameFromPath -Path $passwordFolder.path -Mode $FolderNamingMode -PathDelimiter $PasswordFolderPathDelimiter -NameDelimiter $PasswordFolderNameDelimiter
         $match = $null
         $match = $PFMappings.Keys | Sort-Object { $_.Length } -Descending | Where-Object { $FolderName.StartsWith($_, [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
         if ($match) {

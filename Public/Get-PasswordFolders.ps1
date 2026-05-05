@@ -9,7 +9,7 @@ function Get-ITGPasswordFolders {
 
         [switch]$ComputePaths,
 
-        [string]$Separator = '/',
+        [string]$Separator = '<FDELIM>',
 
         [ValidateRange(1, 1000)]
         [int]$PageSize = 1000
@@ -81,7 +81,6 @@ function Get-ITGPasswordFolders {
     foreach ($f in $folders) {
         $parentIdRaw = $f.attributes.'parent-id'
         if ($parentIdRaw) {
-            [void][int64]::TryParse("$parentIdRaw", [ref]([ref]$null)) # no-op parse to normalize type
             $parentId64 = [int64]$parentIdRaw
             if (-not $childrenByParent.ContainsKey($parentId64)) { $childrenByParent[$parentId64] = New-Object System.Collections.Generic.List[long] }
             $childrenByParent[$parentId64].Add([int64]$f.id)
@@ -146,11 +145,11 @@ function Get-ITGPasswordFolders {
 
         $name = "$($Folder.attributes.name)".Trim()
 
-        $anc = Get-Ancestors -Folder $Folder -Lkp $Lkp -MemoAnc $MemoAnc
+        $anc = @(Get-Ancestors -Folder $Folder -Lkp $Lkp -MemoAnc $MemoAnc)
         if ($anc.Count -gt 0) {
-            $parts = foreach ($aid in $anc) {
+            $parts = @(foreach ($aid in $anc) {
                 if ($Lkp.ContainsKey($aid)) { "$($Lkp[$aid].attributes.name)".Trim() }
-            }
+            })
             $parts += $name
             $path = ($parts -join $Sep)
             $MemoPath[$id] = $path
@@ -164,7 +163,7 @@ function Get-ITGPasswordFolders {
 
     $enriched = foreach ($f in $folders) {
         $id64 = [int64]$f.id
-        $ancestors = Get-Ancestors -Folder $f -Lkp $lookup -MemoAnc $memoAnc
+        $ancestors = @(Get-Ancestors -Folder $f -Lkp $lookup -MemoAnc $memoAnc)
         $path = Resolve-Path -Folder $f -Lkp $lookup -MemoPath $memoPath -MemoAnc $memoAnc -Sep $Separator
 
         $childIds = @()
