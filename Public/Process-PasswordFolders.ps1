@@ -1,11 +1,11 @@
-if (-not (Get-Command -Name Get-EnsuredPath -ErrorAction SilentlyContinue)) { . .\Public\Init-OptionsAndLogs.ps1 }
-if (-not (Get-Command -Name Get-ITGPasswordFolders -ErrorAction SilentlyContinue)) { . $PSScriptRoot\Public\Get-PasswordFolders.ps1 }
+if (-not (Get-Command -Name Get-EnsuredPath -ErrorAction SilentlyContinue)) {     . "$($(get-childitem -path "." -Recurse -file "Init-OptionsAndLogs.ps1" | Select-Object -first 1).fullname)" }
+if (-not (Get-Command -Name Get-ITGPasswordFolders -ErrorAction SilentlyContinue)) { . "$($(get-childitem -path "." -Recurse -file "Get-PasswordFolders.ps1" | Select-Object -first 1).fullname)"}
 
 $global_password_folders = @()
 $PFMappings = $PFMappings ?? @{}
 $ITGPasswordFolders =  @{}; $MatchedPasswordFolders = @()
 $GlobalPasswordFolderMode = $GlobalPasswordFolderMode ?? $([bool]$("global" -eq $(Select-ObjectFromList -message "Password folder import mode-" -objects @("global","per-company"))))
-
+$PWFPageSize = $PWFPageSize ?? 250
 if (-not $MatchedCompanies -or $matchedCompanies.count -lt 1){
     write-host "Can't preload password folders without matched companies, skipping preload of password folders."
     return
@@ -55,7 +55,7 @@ foreach ($itgcompanyID in ($matchedpasswords.ITGObject.attributes.'organization-
     }
     # 2) Get folders for this org (paths already computed)
     $passwordFolderArray = $null
-    $passwordFolderArray = Get-ITGPasswordFolders -ITGKEY $ITGKey -organization_id $itgcompanyID -ComputePaths -Separator "<FDELIM>"
+    $passwordFolderArray = Get-ITGPasswordFolders -ITGKEY $ITGKey -organization_id $itgcompanyID -ComputePaths -Separator "<FDELIM>" -PageSize $PWFPageSize
     
     if (-not $passwordFolderArray -or $passwordFolderArray.Count -eq 0) {
         Write-Host "No password folders for company $itgcompanyID — skipping."
@@ -75,7 +75,7 @@ foreach ($itgcompanyID in ($matchedpasswords.ITGObject.attributes.'organization-
     foreach ($passwordFolder in $foldersWithPasswords) {
         $companyError = $null; $folderError = $null; $passwordError = $null; $Modified = $false; $existingpass = $null;
         
-        $FolderName = ($passwordFolder.path -split "<FDELIM>")[0]
+        $FolderName = ($passwordFolder.path -split "<FDELIM>") -join " - "
         $match = $null
         $match = $PFMappings.Keys | Sort-Object { $_.Length } -Descending | Where-Object { $FolderName.StartsWith($_, [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
         if ($match) {
@@ -229,3 +229,18 @@ if ($true -eq $companyPasswordFolderAttributionMove -and $true -eq $GlobalPasswo
         }
     }
 }
+# quick cleaning pass
+$allPasswords = get-hudupasswords
+ foreach ($p in $(get-hudupasswordfolders)) {
+     $pwf = $p.password_folder ?? $p.password_folders ?? $p
+
+     $infolder = $allpasswords | Where-Object {
+         $_.password_folder_id -eq $pwf.id
+     }
+
+     Write-Host "$($infolder.Count) in $($pwf.name)"
+    if ($infolder.Count -eq 0) {
+        Write-Host "No passwords in folder '$($pwf.name)' — deleting"
+        Remove-HuduPasswordFolder -Id $pwf.id
+    }
+ }
