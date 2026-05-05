@@ -2363,7 +2363,10 @@ if ($true -eq $allowSettingFlagsAndTypes){
     . .\public\Add-HuduFlagsFlagtypes.ps1
 }
 
-foreach ($auxilliaryObj in @(@{Name = "passwordfolders"; Created = $MatchedPasswordFolders ?? @() }, @{Name = "checklists"; Created = $MatchedChecklists ?? @() }, @{Name="Interfaces-IPAM"; Created = ($MatchedInterfaces ?? @())})) {
+$MatchedUploadFields = $MatchedUploadFields ?? @{}
+$UnresolvedUploadFields = $UnresolvedUploadFields ?? @{}
+foreach ($auxilliaryObj in @(@{Name = "passwordfolders"; Created = $MatchedPasswordFolders ?? @() }, @{Name="UploadFields"; Created = $MatchedUploadFields ?? @() }, @{Name="UnresolvedUploadFields"; Created = $UnresolvedUploadFields ?? @() }, @{Name = "checklists"; Created = $MatchedChecklists ?? @() }, @{Name="Interfaces-IPAM"; Created = ($MatchedInterfaces ?? @())})) {
+    write-host "Writing json dump for $($auxilliaryObj.Name) created during migration for reference in manual actions and for audit purposes"
     $auxilliaryObj.Created | ConvertTo-Json -depth 75 | Out-File $(join-path $settings.MigrationLogs "created-$($auxilliaryObj.Name).json")
 }
 ############################### End ###############################
@@ -2388,6 +2391,8 @@ $migratedItems = [ordered]@{
     'Checklists / Checklist Templates Migrated'  = Get-SafeCount $MatchedChecklists
     'Relations Created'                          = Get-SafeCount $NewRelationsCreated
     'IPAM Interfaces/Networks/Addresses Migrated'= Get-SafeCount $MatchedInterfaces
+    'Upload Fields Migrated'                     = Get-SafeCount $MatchedUploadFields
+    'Upload Fields Unresolved'                   = Get-SafeCount $UnresolvedUploadFields
 }
 
 $archivedItems = [ordered]@{

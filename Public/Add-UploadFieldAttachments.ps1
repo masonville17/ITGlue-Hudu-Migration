@@ -142,7 +142,7 @@ foreach ($file in $AllUploadCandidateFiles) {
 }
 
 $MatchedUploadFields = @{}
-
+$UnresolvedUploadFields = @{}
 foreach ($UploadAsset in $MatchedAssets | Where-Object { $_.HuduID -and $_.HuduID -gt 0 }) {
     $traits = $UploadAsset.ITGObject.attributes.traits
 
@@ -186,10 +186,34 @@ foreach ($UploadAsset in $MatchedAssets | Where-Object { $_.HuduID -and $_.HuduI
             (Get-ITGAttachmentMatch -ExpectedName $filename -ExpectedSize $expectedSize -UrlParts $parts -UploadAsset $UploadAsset -Candidates $typeCandidates) ??
             (Get-ITGAttachmentMatch -ExpectedName $filename -ExpectedSize $expectedSize -UrlParts $parts -UploadAsset $UploadAsset -Candidates $AllUploadCandidateFiles)
 
-        $matchedFile = $match.File
-        $newUpload = New-HuduUpload -uploadable_id $UploadAsset.HuduID -filePath $matchedFile.FullName -uploadable_type "Asset"
-        $newUpload = $newUpload.upload ?? $newUpload
+        if ($null -eq $match.file){
+            $UnresolvedUploadFields["$($UploadAsset.HuduID):$name"] = @{
+                UploadAsset = $UploadAsset
+                FieldName   = $name
+                FilePath    = $null
+                ITGFileUrl  = $value.url
+                ITGFileName = $filename
+                MatchScore  = 0
+            }
+            Write-Warning "Unable to resolve file for '$filename' with url hint '$($value.url)' in asset ID $($UploadAsset.HuduID)"
+            continue
+        }
+        write-host "Matched '$filename' to '$($match.File.FullName)' with score $($match.Score) for asset ID $($UploadAsset.HuduID)"
 
+        $matchedFile = $match.File
+        $newUpload = $null; $newUpload = New-HuduUpload -uploadable_id $UploadAsset.HuduID -filePath $matchedFile.FullName -uploadable_type "Asset"; $newUpload = $newUpload.upload ?? $newUpload;
+        if ($null -eq $newUpload) {
+            Write-Warning "Failed to create upload for '$filename' at '$($matchedFile.FullName)' for asset ID $($UploadAsset.HuduID)"
+            $UnresolvedUploadFields["$($UploadAsset.HuduID):$name"] = @{
+                UploadAsset = $UploadAsset
+                FieldName   = $name
+                FilePath    = $null
+                ITGFileUrl  = $value.url
+                ITGFileName = $filename
+                MatchScore  = 0
+            }            
+            continue
+        }
 
         if ($matchedFile) {
             $MatchedUploadFields["$($UploadAsset.HuduID):$name"] = @{
