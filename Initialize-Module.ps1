@@ -443,24 +443,24 @@ if ($InitType -eq 'Full') {
         "2" {$ScopedMigration = $true}
     }
     ############################## Checklists ##############################
-    while ($importChecklists -notin (1,2)) {$importChecklists = Read-Host "[ADVANCED] Would you like to import Checklists? (requires web access to ITGlue).`n 1) Yes`n 2) No, Skip Checklists`n(1/2)"}
+    while ($importChecklists -notin  @(1,2, $true, $false)) {$importChecklists = Read-Host "[ADVANCED] Would you like to import Checklists? (requires web access to ITGlue).`n 1) Yes`n 2) No, Skip Checklists`n(1/2)"}
     switch ($importChecklists) {
-        "1" {$importChecklists = $true}
-        "2" {$importChecklists = $false}
+        "1" {$importChecklists = $false}
+        "2" {$importChecklists = $true}
     }
 
     ############################ PasswordFolders ############################
-    while ($importPasswordFolders -notin (1,2)) {$importPasswordFolders = Read-Host "Would you like to import Password Folders?`n 1) Yes`n 2) No, Skip Password Folders`n(1/2)"}
+    while ($importPasswordFolders -notin @(1,2, $true, $false)) {$importPasswordFolders = Read-Host "Would you like to import Password Folders?`n 1) Yes`n 2) No, Skip Password Folders`n(1/2)"}
     switch ($importPasswordFolders) {
-        "1" {$importPasswordFolders = $true; 
+        "2" {$importPasswordFolders = $true; 
             $GlobalPasswordFolderMode =  $GlobalPasswordFolderMode ?? $([bool]$("global" -eq $(Select-ObjectFromList -message "Password folder import mode-" -objects @("global","per-company"))))
             $companyPasswordFolderAttributionMove = $companyPasswordFolderAttributionMove ?? $(if ($true -eq $GlobalPasswordFolderMode) {[bool]$("yes" -eq $(Select-ObjectFromList -message "Password Folders with only one company of passwords- do you want to move those to company-scope password folders? (if you aren't sure, 'yes' is generally a good bet)" -objects @("yes","no")))} else {$false})
         }
-        "2" {$importPasswordFolders = $false; $GlobalPasswordFolderMode = $null; $companyPasswordFolderAttributionMove = $false}
+        "1" {$importPasswordFolders = $false; $GlobalPasswordFolderMode = $null; $companyPasswordFolderAttributionMove = $false}
     }    
 
     ############################## Interfaces ##############################
-    while ($ImportConfigInterfaces -notin (1,2)) {$ImportConfigInterfaces = Read-Host "Would you like to import configuration interfaces (IP Addresses) into IPam in Hudu?.`n 1) Yes`n 2) No, Skip Interfaces/Addresses`n(1/2)"}
+    while ($ImportConfigInterfaces -notin @(1,2, $true, $false)) {$ImportConfigInterfaces = Read-Host "Would you like to import configuration interfaces (IP Addresses) into IPam in Hudu?.`n 1) Yes`n 2) No, Skip Interfaces/Addresses`n(1/2)"}
     switch ($ImportConfigInterfaces) {
         "1" {$ImportConfigInterfaces = $true}
         "2" {$ImportConfigInterfaces = $false}
