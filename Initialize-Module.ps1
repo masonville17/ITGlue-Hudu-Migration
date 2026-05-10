@@ -20,14 +20,21 @@
 # Add/enhance the migration areas to use the new API features of Hudu
 
 
-
-
 param(
     [Parameter(Mandatory=$true)]
     [ValidateSet("Full", "Lite")]
     [string] $InitType
 )
-
+if ((get-host).version.major -ne 7) {
+    Write-Host "Powershell 7 Required" -foregroundcolor Red
+    exit 1
+}
+if ($MyInvocation.InvocationName -eq '.') {
+    Write-Host "Script was dot-sourced" -ForegroundColor Green
+} else {
+    Write-Host "Script was executed without dot-sourcing, this is the recommended method of running the script to ensure settings are retained in the session" -ForegroundColor Yellow; write-warning "exiting to prevent issues later on, please dot-source the script by running `. .\ITGlue-Hudu-Migration.ps1` from powershell 7 or using the provided ITGlue-Hudu-Migration.exe frontend.";
+    exit 1
+}
 ############################### Settings ###############################
 # Define the path to the settings.json file in the user's AppData folder
 
@@ -37,6 +44,8 @@ if($IsWindows){
 } else {
     $settingsTop = Join-Path "$home" ".config"
 }
+if (-not (Get-Command -Name Get-EnsuredPath -ErrorAction SilentlyContinue)) { . $PSScriptRoot\Public\Init-OptionsAndLogs.ps1 }
+$debugfolder = $debugFolder ?? $(Get-EnsuredPath -path $(join-path $(Resolve-Path .).path "debug"))
 
 # Define the path to the settings.json file in the detected platform's folder:
 # Running on Windows will save to the user's AppData
@@ -57,42 +66,8 @@ function ConvertSecureStringToPlainText {
     [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
     return $plainText
 }
-function Select-ObjectFromList($objects, $message, $allowNull = $false) {
-    $validated = $false
-    while (-not $validated) {
-        if ($allowNull) { Write-Host "0: None/Custom" }
 
-        for ($i = 0; $i -lt $objects.Count; $i++) {
-            $object = $objects[$i]
-            $displayLine = if ($null -ne $object.OptionMessage) {
-                "$($i+1): $($object.OptionMessage)"
-            } elseif (-not $([string]::IsNullOrEmpty($object.attributes.name))) {
-                "$($i+1): $($object.attributes.name)"
-            } elseif (-not $([string]::IsNullOrEmpty($object.name))) {
-                "$($i+1): $($object.name)"
-            } else {
-                "$($i+1): $($object)"
-            }
-            Write-Host $displayLine -ForegroundColor $(if ($i % 2 -eq 0) { 'Cyan' } else { 'Yellow' })
-        }
 
-        $raw = Read-Host $message
-
-        $parsed = 0
-        if (-not [int]::TryParse($raw, [ref]$parsed)) {
-            Write-Host "Invalid input. Please enter a number." -ForegroundColor Red
-            continue
-        }
-
-        if ($parsed -eq 0 -and $allowNull) { return $null }
-
-        if ($parsed -ge 1 -and $parsed -le $objects.Count) {
-            return $objects[$parsed - 1]
-        } else {
-            Write-Host "Invalid selection. Please enter a number from the list." -ForegroundColor Red
-        }
-    }
-}
 
 # Prompt the user for various settings and save the responses
 function CollectAndSaveSettings {
@@ -124,10 +99,10 @@ function CollectAndSaveSettings {
             Write-Host "This doesn't seem to be a valid Hudu API key. It is $($HuduAPIKey.Length) characters long, but should be 24." -ForegroundColor Red
         }
     }
-    while ($ITGKey.Length -ne 101) {
-        $ITGKey = (Read-Host -Prompt 'Enter your ITGlue API Key (must have password access). Should be 101 characters.').Trim()
-        if ($ITGKey.Length -ne 101) {
-            Write-Host "This doesn't seem to be a valid ITGlue API key. It is $($ITGKey.Length) characters long, but should be 101." -ForegroundColor Red
+    while ($ITGKey.Length -notin 100..105) {
+        $ITGKey = (Read-Host -Prompt 'Enter your ITGlue API Key (must have password access). Should be 101-104 characters.').Trim()
+        if ($ITGKey.Length -notin 101..105) {
+            Write-Host "This doesn't seem to be a valid ITGlue API key. It is $($ITGKey.Length) characters long, but should be 101-104." -ForegroundColor Red
         }
     }
     $settings.ITGKey = ConvertTo-SecureString -String $ITGKey -AsPlainText -Force | ConvertFrom-SecureString
@@ -137,19 +112,34 @@ function CollectAndSaveSettings {
     Write-Host "Settings- Global KnowledgeBase:" -ForegroundColor Yellow
     $settings.InternalCompany = $settings.InternalCompany ??
         $(Read-Host 'Enter the exact name of the ITGlue Organization that represents your Internal Company ').ToString().Trim()
-    $settings.GlobalKBFolder = $settings.GlobalKBFolder ??
-        ""
-    while ($settings.GlobalKBFolder.Length -ne 1 -or $settings.GlobalKBFolder.ToLower() -notin @('y','n')) {
-        $settings.GlobalKBFolder = $(Read-Host -Prompt 'Do you want all documents in Global KB to be placed into a subfolder? (y/n)').ToString().Trim().ToLower()
-        if ($settings.GlobalKBFolder -notin @("y","n")){
-            Write-Host "Please re-enter, y or n"
+    if ($null -eq $settings.PlaceInternalDocsInInternalCompany) {
+        while ($null -eq $settings.PlaceInternalDocsInInternalCompany) {
+            $internalDocsChoice = $(Read-Host -Prompt 'Do you want documents from your Internal Company to stay under that company instead of going to Global KB? [Default behavior is N/$false] (y/n)').ToString().Trim().ToLower()
+            switch ($internalDocsChoice) {
+                { $_ -in @('y','yes') } { $settings.PlaceInternalDocsInInternalCompany = $true; break }
+                { $_ -in @('n','no') } { $settings.PlaceInternalDocsInInternalCompany = $false; break }
+                default { Write-Host "Please re-enter, y or n" }
+            }
         }
     }
-    Write-Host "The documents from the company $($settings.InternalCompany) will be migrated to Hudu's Global KB section " -ForegroundColor Cyan
+    if ($true -ne $settings.PlaceInternalDocsInInternalCompany) {
+        $settings.GlobalKBFolder = $settings.GlobalKBFolder ??
+            ""
+        while ($settings.GlobalKBFolder.Length -ne 1 -or $settings.GlobalKBFolder.ToLower() -notin @('y','n')) {
+            $settings.GlobalKBFolder = $(Read-Host -Prompt 'Do you want all documents in Global KB to be placed into a subfolder? (y/n)').ToString().Trim().ToLower()
+            if ($settings.GlobalKBFolder -notin @("y","n")){
+                Write-Host "Please re-enter, y or n"
+            }
+        }
+        Write-Host "The documents from the company $($settings.InternalCompany) will be migrated to Hudu's Global KB section " -ForegroundColor Cyan
+    } else {
+        Write-Host "The documents from the company $($settings.InternalCompany) will stay under that company in Hudu" -ForegroundColor Cyan
+    }
     $settings.ConPromptPrefix = $settings.ConPromptPrefix ?? 
         $(Read-Host "Would you like a Prefix in front of ️Configuration names️ created in Hudu? This can make it easy to review and you can rename them later. Enter the prefix here, otherwise leave it blank. (e.g. ITGlue-)")
     $settings.FAPromptPrefix = $settings.FAPromptPrefix ??
         $(Read-Host "Would you like a Prefix in front of Asset Layout names created in Hudu? This can make it easy to review and you can rename them later. Enter the prefix here, otherwise leave it blank. (e.g. ITGlue-)")
+    $settings.IncludeITGlueID =  $settings.IncludeITGlueID ?? [bool]$($(Select-ObjectFromList -message "would you like to include ITGlue ID in your contacts, locations, and configurations layouts?" -objects @($true,$false) -allowNull $false) ?? $true)
 
     
     # 4. User-Entry Paths and Folders
@@ -318,8 +308,9 @@ catch {
 #Enter your primary IT Glue internal URL
 $ITGURL = $environmentSettings.ITGURL
 
-# IT Glue Internal Company Name (The documents from this company will be migrated to the Global KB)
+# IT Glue Internal Company Name
 $InternalCompany = $environmentSettings.InternalCompany
+$PlaceInternalDocsInInternalCompany = [bool]$environmentSettings.PlaceInternalDocsInInternalCompany ?? $false
 
 $ITGLueExportPath = $environmentSettings.ITGLueExportPath
 
@@ -329,7 +320,7 @@ while ($resumeQuestion -notin ('yes','no')) {
 	$resumeQuestion = Read-Host "Would you like to resume a previous migration? (yes/no)"
 }
 $ResumePrevious = if ($resumeQuestion -eq 'yes') {$true} else {$false}
-$GlobalKBFolder = $environmentSettings.GlobalKBFolder
+$GlobalKBFolder = if ($PlaceInternalDocsInInternalCompany) { $null } else { $environmentSettings.GlobalKBFolder }
 
 # These settings should only run when doing a full settings initialization.
 if ($InitType -eq 'Full') {
@@ -348,7 +339,7 @@ if ($InitType -eq 'Full') {
     }
 
     # The asset layout name how locations will appear in Hudu
-    $LocImportAssetLayoutName = "Locations"
+    $LocImportAssetLayoutName = $LocImportAssetLayoutName ?? "Locations"
 
     # The font awesome name for the locations icon in Hudu
     $LocImportIcon = "fas fa-building"
@@ -363,6 +354,12 @@ if ($InitType -eq 'Full') {
         "1" {$ImportDomains = $true}
         "2" {$ImportDomains = $false}
     }
+
+    while ($MergedOrganizationTypes -notin (1,2)) {$MergedOrganizationTypes = Read-Host "Would you like to merge certain organization types in ITGlue to a given existing hudu company?.`n 1) Operate as normal`n 2) Scope ITGlue Org Type to a Company in Hudu`n(1/2)"}
+    switch ($MergedOrganizationTypes) {
+        "1" {$MergedOrganizationTypes = $false}
+        "2" {$MergedOrganizationTypes = $true}
+    }    
 
     # Choose if you would like to enable monitoring for the imported websites.
     while ($DisableWebsiteMonitoring -notin (1,2)) {$DisableWebsiteMonitoring = Read-Host "1) Leave Website Monitoring enabled `n2) Disable Website Monitoring`n(1/2)"}
@@ -395,7 +392,7 @@ if ($InitType -eq 'Full') {
     }
 
     # The asset layout name how locations will appear in Hudu
-    $ConImportAssetLayoutName = "People"
+    $ConImportAssetLayoutName = $ConImportAssetLayoutName ?? "People"
 
     # The font awesome name for the locations icon in Hudu
     $ConImportIcon = "fas fa-users"
@@ -439,33 +436,84 @@ if ($InitType -eq 'Full') {
         "1" {$NonInteractive = $false}
         "2" {$NonInteractive = $true}
     }    
-    ############################### Unattended ###############################
+    ############################### Scoping ###############################
     while ($ScopedMigration -notin (1,2)) {$ScopedMigration = Read-Host "1) Run normally `n2) Perform migration scoped to certain companies `n(1/2)"}
     switch ($ScopedMigration) {
         "1" {$ScopedMigration = $false}
         "2" {$ScopedMigration = $true}
     }
     ############################## Checklists ##############################
-    while ($importChecklists -notin (1,2)) {$importChecklists = Read-Host "[ADVANCED, default 1/$false] Would you like to import Checklists? (requires web access to ITGlue).`n 1) Yes`n 2) No, Skip Checklists`n(1/2)"}
+    while ($importChecklists -notin  @(1,2, $true, $false)) {$importChecklists = Read-Host "Would you like to import Checklists? (requires web access to ITGlue).`n 1) No, Skip Checklists (Default)`n 2) Yes, Import Checklists (requires JWT, more difficult)`n(1/2)"}
     switch ($importChecklists) {
-        "2" {$importChecklists = $true}
         "1" {$importChecklists = $false}
+        "2" {$importChecklists = $true}
     }
+
     ############################ PasswordFolders ############################
-    while ($importPasswordFolders -notin (1,2)) {$importPasswordFolders = Read-Host "[default 1/$true] Would you like to import Password Folders?.`n 1) Yes`n 2) No, Skip Checklists`n(1/2)"}
+    while ($importPasswordFolders -notin @(1,2, $true, $false)) {$importPasswordFolders = Read-Host "Would you like to import Password Folders?`n 1) Yes`n 2) No, Skip Password Folders`n(1/2)"}
     switch ($importPasswordFolders) {
-        "1" {$importPasswordFolders = $true; $GlobalPasswordFolderMode = [bool]$("global" -eq $(Select-ObjectFromList -message "Password folder import mode-" -objects @("global","per-company")));}
-        "2" {$importPasswordFolders = $false; $GlobalPasswordFolderMode = $null}
-    }
-    while ($ImportConfigInterfaces -notin (1,2)) {$ImportConfigInterfaces = Read-Host "Would you like to import configuration interfaces (IP Addresses) into IPam in Hudu?.`n 1) Yes`n 2) No, Skip Interfaces/Addresses`n(1/2)"}
+        "1" {$importPasswordFolders = $true; 
+            $GlobalPasswordFolderMode =  $GlobalPasswordFolderMode ?? $([bool]$("global" -eq $(Select-ObjectFromList -message "Password folder import mode-" -objects @("global","per-company"))))
+            $companyPasswordFolderAttributionMove = $companyPasswordFolderAttributionMove ?? $(if ($true -eq $GlobalPasswordFolderMode) {[bool]$("yes" -eq $(Select-ObjectFromList -message "Password Folders with only one company of passwords- do you want to move those to company-scope password folders? (if you aren't sure, 'yes' is generally a good bet)" -objects @("yes","no")))} else {$false})
+        }
+        "2" {$importPasswordFolders = $false; $GlobalPasswordFolderMode = $null; $companyPasswordFolderAttributionMove = $false}
+    }    
+
+    ############################## Interfaces ##############################
+    while ($ImportConfigInterfaces -notin @(1,2, $true, $false)) {$ImportConfigInterfaces = Read-Host "Would you like to import configuration interfaces (IP Addresses) into IPam in Hudu (requires more time)?.`n 1) Yes`n 2) No, Skip Interfaces/Addresses`n(1/2)"}
     switch ($ImportConfigInterfaces) {
         "1" {$ImportConfigInterfaces = $true}
         "2" {$ImportConfigInterfaces = $false}
     }
-    
+
+
+    ############################ Image Anchors Regex ############################
+    $OptionalImageAnchorReplace = $OptionalImageAnchorReplace ?? $true
+    while ($OptionalImageAnchorReplace -notin @(1,2, $true, $false)) {$OptionalImageAnchorReplace = Read-Host "[Other, default 1/$true] Would you like to replace links to hosted images in Hudu? (Not commonly needed but can be good for images-as-links in articles).`n 1) Yes`n 2) No, skip image-links`n(1/2)"}
+    switch ($OptionalImageAnchorReplace) {
+        "1" {$OptionalImageAnchorReplace = $true}
+        "2" {$OptionalImageAnchorReplace = $false}
+    }    
+    while ($skipIntegratorLayouts -notin @(1,2, $true, $false)){
+        $skipIntegratorLayoutsInput = Read-Host "[Other, default false] Would you like to skip importing Integrator Layouts? These are often containing data that goes unused.`n 1) Yes`n 2) No, import all layouts`n(1/2)"
+        switch ($skipIntegratorLayoutsInput) {
+            "1" {$skipIntegratorLayouts = $true}
+            "2" {$skipIntegratorLayouts = $false}
+        }
+    }
+    $allowSettingFlagsAndTypes = $allowSettingFlagsAndTypes ?? $false
+    while ($allowSettingFlagsAndTypes -notin @(1,2, $true, $false)){
+        $allowSettingFlagsAndTypes = Read-Host "Would you like to apply flags and flag types during the migration? This requires Hudu version 2.40.0 or later.`n 1) Yes`n 2) No, skip setting Flags and FlagTypes`n(1/2)"
+        switch ($allowSettingFlagsAndTypes) {
+            "1" {$allowSettingFlagsAndTypes = $true}
+            "2" {$allowSettingFlagsAndTypes = $false}
+    }
+
+    $IncludeIgnoredFirstArticleDirectory = $IncludeIgnoredFirstArticleDirectory ?? [bool]((select-objectfromlist -message "would you like to include root directories when migrating article folders? default behavior is no/false" -objects @("no","yes")) -eq "yes")
+}
 }
 ############################ Migration Logs Path ##############################
 $MigrationLogs = $environmentSettings.MigrationLogs
+
+# Now that ITGlue export jobs require a user to elect to include passwords via checkbox, we need to check for the presence of the passwords.csv and warn user in relation to their migration strategy.
+$passwordsCSVvalidated = $false
+
+while ($passwordsCSVvalidated -eq $false) {
+    if (Test-Path -Path $(join-path -path $ITGLueExportPath -childpath "passwords.csv") -ErrorAction SilentlyContinue) {
+        Write-Host "Password CSV found at $(join-path -path $ITGLueExportPath -childpath "passwords.csv")" -ForegroundColor Cyan
+        $passwordsCSVvalidated = $true
+    } elseif ((2,$false) -contains $ImportPasswords -and (2,$false) -contains $ImportFlexibleAssets) {
+        write-host "passwords.csv not found at $(join-path -path $ITGLueExportPath -childpath "passwords.csv"), but since you have chosen to skip both flexible assets and passwords, this file is not needed specifically for your migration. If you later choose to migrate either of those sections, make sure to have a passwords.csv in your export folder." -ForegroundColor Yellow; start-sleep -seconds 2;
+        $passwordsCSVvalidated = $true
+    } else {
+        Write-Host "passwords.csv not found at $(join-path -path $ITGLueExportPath -childpath "passwords.csv"). You'll want to take another export, this time ensuring that passwords are included. Failure to do so will result in missing password data. Passwords.csv is used in both flexible assets and passwords portions of the migration." -ForegroundColor Red;  start-sleep -seconds 2;
+        $overrideNoPassCSV = read-host "Press Enter to re-check for the file if you have extracted a new export to $($ITGLueExportPath), or Ctrl+C to exit. To continue anyway without passwords CSV (not reccomended), please enter this phrase exactly with no quotes: 'migrate-anyway'"
+        if ($overrideNoPassCSV -ieq 'migrate-anyway') {
+            Write-Host "Continuing without passwords.csv. Password data will be missing from the migration." -ForegroundColor Yellow
+            $passwordsCSVvalidated = $true
+        }
+    }
+}
 
 ############################### End of Settings ###############################
 
