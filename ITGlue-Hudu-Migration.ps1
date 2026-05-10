@@ -78,7 +78,8 @@ $FontAwesomeUpgrade = Get-FontAwesomeMap
 . $PSScriptRoot\Public\Get-ITGFieldPopulated.ps1
 . $PSScriptRoot\Public\JWT-Auth.ps1
 . $PSScriptRoot\Public\NetworkInformation.ps1
-. $PSScriptRoot\Public\PreFlightTests.ps1
+. $PSScriptRoot\Public\PreFlightTests.ps
+############################### End of Functions ###############################
 
 if (-not (Get-Command -Name Get-UserFlagSetup -ErrorAction SilentlyContinue)) { . $PSScriptRoot\Public\Add-OptionalFlags.ps1 }
 
@@ -2352,6 +2353,11 @@ write-host "wrapup 8/10... Placing checklists / checklist templates if user-conf
 if ($true -eq $importChecklists){
     . .\public\Process-Checklists.ps1
 }
+if ($true -eq $ImportConfigInterfaces){
+    write-host "Calculations for addresses can take a while. Please be patient. If it looks like it's stuck, it's just crunching numbers from your $($MatchedConfigurations.count) possible configurations"
+    $MatchedInterfaces = Invoke-HuduConfigurationIPAMSync -MatchedConfigurations $MatchedConfigurations
+}
+
 
 write-host "wrapup 9/10... adding missing relations (this can take a long while). Some errors may appear but can be safely ignored."  -ForegroundColor DarkCyan
 # set retry to off/false in HuduAPI module, this will save time during adding potentially existent relations.
