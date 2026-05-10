@@ -57,7 +57,7 @@ $FontAwesomeUpgrade = Get-FontAwesomeMap
 . $PSScriptRoot\Public\Get-PasswordFolders.ps1
 . $PSScriptRoot\Public\JWT-Auth.ps1
 . $PSScriptRoot\Public\Normalize-String.ps1
-
+. $PSScriptRoot\Public\NetworkInformation.ps1
 ############################### End of Functions ###############################
 
 
@@ -2404,6 +2404,11 @@ if ($true -eq $importPasswordFolders){
 if ($true -eq $importChecklists){
     . .\public\Process-Checklists.ps1
 }
+if ($true -eq $ImportConfigInterfaces){
+    write-host "Calculations for addresses can take a while. Please be patient. If it looks like it's stuck, it's just crunching numbers from your $($MatchedConfigurations.count) possible configurations"
+    $MatchedInterfaces = Invoke-HuduConfigurationIPAMSync -MatchedConfigurations $MatchedConfigurations
+}
+
 
 ############################### Generate Manual Actions Report ###############################
 

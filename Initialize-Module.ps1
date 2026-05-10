@@ -452,11 +452,17 @@ if ($InitType -eq 'Full') {
         "1" {$importChecklists = $false}
     }
     ############################ PasswordFolders ############################
-    while ($importPasswordFolders -notin (1,2)) {$importPasswordFolders = Read-Host "[ADVANCED, default 1/$false] Would you like to import Password Folders? (requires web access to ITGlue).`n 1) Yes`n 2) No, Skip Checklists`n(1/2)"}
+    while ($importPasswordFolders -notin (1,2)) {$importPasswordFolders = Read-Host "[default 1/$true] Would you like to import Password Folders?.`n 1) Yes`n 2) No, Skip Checklists`n(1/2)"}
     switch ($importPasswordFolders) {
-        "2" {$importPasswordFolders = $true; $GlobalPasswordFolderMode = [bool]$("global" -eq $(Select-ObjectFromList -message "Password folder import mode-" -objects @("global","per-company")));}
-        "1" {$importPasswordFolders = $false; $GlobalPasswordFolderMode = $null}
+        "1" {$importPasswordFolders = $true; $GlobalPasswordFolderMode = [bool]$("global" -eq $(Select-ObjectFromList -message "Password folder import mode-" -objects @("global","per-company")));}
+        "2" {$importPasswordFolders = $false; $GlobalPasswordFolderMode = $null}
     }
+    while ($ImportConfigInterfaces -notin (1,2)) {$ImportConfigInterfaces = Read-Host "Would you like to import configuration interfaces (IP Addresses) into IPam in Hudu?.`n 1) Yes`n 2) No, Skip Interfaces/Addresses`n(1/2)"}
+    switch ($ImportConfigInterfaces) {
+        "1" {$ImportConfigInterfaces = $true}
+        "2" {$ImportConfigInterfaces = $false}
+    }
+    
 }
 ############################ Migration Logs Path ##############################
 $MigrationLogs = $environmentSettings.MigrationLogs
