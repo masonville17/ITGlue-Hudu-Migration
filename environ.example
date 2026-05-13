@@ -90,7 +90,6 @@ $ImportConfigInterfaces              = $true  # default true;  this creates IPAM
 $NonInteractive                      = $true  # Select $false for interactive steps, $true for noninteractive/no pauses (default)
 $skipIntegratorLayouts               = $true  # do you want to skip flexible asset layouts from integrators? they are generally have the phrase '(auto)' in the name
 $OptionalImageAnchorReplace          = $true  # this replaces anchors / links to images in articles (reccomended to leave to 1/ $true)
-$OptionalImageAnchorReplace          = $true  # best to leave this set to 'true'. it replaces anchors to images with the image URL in Hudu.
          
 $allowSettingFlagsAndTypes           = $false # Apply flags and flag types during the migration; requires Hudu 2.40+
 $ScopedMigration                     = $false # If you want to scope migration to just come companies, set to 2/$true  (default 1/$false)
