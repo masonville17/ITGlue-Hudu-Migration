@@ -319,7 +319,7 @@ $ITGLueExportPath = $environmentSettings.ITGLueExportPath
 while ($resumeQuestion -notin ('yes','no')) {
 	$resumeQuestion = Read-Host "Would you like to resume a previous migration? (yes/no)"
 }
-$ResumePrevious = if ($resumeQuestion -eq 'yes') {$true} else {$false}
+$ResumePrevious = if ($resumeQuestion -eq 'yes' -or $resumeQuestion -eq $true) {$true} else {$false}
 $GlobalKBFolder = if ($PlaceInternalDocsInInternalCompany) { $null } else { $environmentSettings.GlobalKBFolder }
 
 # These settings should only run when doing a full settings initialization.
