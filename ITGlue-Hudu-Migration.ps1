@@ -116,19 +116,23 @@ if ($backups -notin @("Y", "y")) {
     exit 1
 }
 
-if (Test-Path -Path "$MigrationLogs") {
-    if ($ResumePrevious -eq $true) {
-        Write-Host "A previous attempt has been found job will be resumed from the last successful section" -ForegroundColor Green
-        $ResumeFound = $true
+if ($true -eq ($generatedFromFrontend ?? $false)){
+    Write-Host "Settings loaded from frontend, skipping path checks for logs/errors dir. Migration log dir was set to: $MigrationLogs" -ForegroundColor Green
+} else {
+    if (Test-Path -Path "$MigrationLogs") {
+        if ($ResumePrevious -eq $true) {
+            Write-Host "A previous attempt has been found job will be resumed from the last successful section" -ForegroundColor Green
+            $ResumeFound = $true
+        } else {
+            Write-Host "A previous attempt has been found, resume is disabled so this will be lost, if you haven't reverted to a snapshot, a resume is recommended" -ForegroundColor Red
+            Write-TimedMessage -Timeout 12 -Message "Press any key to continue or ctrl + c to quit and edit the ResumePrevious setting" -DefaultResponse "proceed with new migration, do not resume"
+            $ResumeFound = $false
+        }
     } else {
-        Write-Host "A previous attempt has been found, resume is disabled so this will be lost, if you haven't reverted to a snapshot, a resume is recommended" -ForegroundColor Red
-        Write-TimedMessage -Timeout 12 -Message "Press any key to continue or ctrl + c to quit and edit the ResumePrevious setting" -DefaultResponse "proceed with new migration, do not resume"
+        Write-Host "No previous runs found creating log directory"
+        $null = New-Item "$MigrationLogs" -ItemType "directory"
         $ResumeFound = $false
     }
-} else {
-    Write-Host "No previous runs found creating log directory"
-    $null = New-Item "$MigrationLogs" -ItemType "directory"
-    $ResumeFound = $false
 }
 
 
