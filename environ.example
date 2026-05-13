@@ -1,19 +1,16 @@
 $project_workdir="$PSScriptRoot"
-$debugFolder=$(join-path "$project_workdir" "debug")
+$debugFolder=$(join-path "$project_workdir" "debug-$(Get-Date -Format o | ForEach-Object { $_ -replace ":", "." })")
 $errors_folder=$(join-path $debugFolder "errors")
 $script:GLOBAL_ERRORS_DIRECTORY="$errors_folder"
-
 # This folder is for migration-level errors to be written
 $script:ITG_ERRORS_DIRECTORY=$(join-path "$errors_folder" "itglue")
-
 # This is the settings folder for your migration preferences and secure-stringified secrets
-$settings_folder=$(join-path "$project_workdir" "debug\settings")
-
+$settings_folder=$(join-path "$debugFolder" "settings")
 # This is for your JSONified state-saving and records saving
-$logs_folder=$(join-path "$project_workdir" "debug\logs")
+$logs_folder=$(join-path "$debugFolder" "logs")
+$defaultSettingsPath=$(join-path "$settings_folder" "settings.json")
 
 # This is your main settings json
-$defaultSettingsPath=$(join-path "$settings_folder" "settings.json")
 
 # Clear paths during main run. Be sure to comment out below if subsequent actions being taken
 foreach ($folder in @($debugFolder, $errors_folder, $logs_folder, $settings_folder, $ITG_ERRORS_DIRECTORY)) {
