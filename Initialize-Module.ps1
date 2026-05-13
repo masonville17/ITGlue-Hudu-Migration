@@ -325,14 +325,14 @@ $GlobalKBFolder = if ($PlaceInternalDocsInInternalCompany) { $null } else { $env
 # These settings should only run when doing a full settings initialization.
 if ($InitType -eq 'Full') {
     ############################### Company Settings ###############################
-    while ($ImportCompanies -notin (1,2)) {$ImportCompanies = Read-Host "1) Import Companies `n2) Skip Companies`n(1/2)"}
+    while ($ImportCompanies -notin (1,2, $true, $false)) {$ImportCompanies = Read-Host "1) Import Companies `n2) Skip Companies`n(1/2)"}
     switch ($ImportCompanies) {
         "1" {$ImportCompanies = $true}
         "2" {$ImportCompanies = $false}
     }
 
     ############################### Location Settings ###############################
-    while ($ImportLocations -notin (1,2)) {$ImportLocations = Read-Host "1) Import Locations `n2) Skip Locations`n(1/2)"}
+    while ($ImportLocations -notin (1,2, $true, $false)) {$ImportLocations = Read-Host "1) Import Locations `n2) Skip Locations`n(1/2)"}
     switch ($ImportLocations) {
         "1" {$ImportLocations = $true}
         "2" {$ImportLocations = $false}
@@ -349,20 +349,20 @@ if ($InitType -eq 'Full') {
     $HuduPrimaryLocationNames = @("Primary Address")
 
     ############################### Domain / Website Settings ###############################
-    while ($ImportDomains -notin (1,2)) {$ImportDomains = Read-Host "Domains are used for Website, DNS and SSL Monitoring.`n 1) Import Domains`n 2) Skip Domains`n(1/2)"}
+    while ($ImportDomains -notin (1,2, $true, $false)) {$ImportDomains = Read-Host "Domains are used for Website, DNS and SSL Monitoring.`n 1) Import Domains`n 2) Skip Domains`n(1/2)"}
     switch ($ImportDomains) {
         "1" {$ImportDomains = $true}
         "2" {$ImportDomains = $false}
     }
 
-    while ($MergedOrganizationTypes -notin (1,2)) {$MergedOrganizationTypes = Read-Host "Would you like to merge certain organization types in ITGlue to a given existing hudu company?.`n 1) Operate as normal`n 2) Scope ITGlue Org Type to a Company in Hudu`n(1/2)"}
+    while ($MergedOrganizationTypes -notin (1,2, $true, $false)) {$MergedOrganizationTypes = Read-Host "Would you like to merge certain organization types in ITGlue to a given existing hudu company?.`n 1) Operate as normal`n 2) Scope ITGlue Org Type to a Company in Hudu`n(1/2)"}
     switch ($MergedOrganizationTypes) {
         "1" {$MergedOrganizationTypes = $false}
         "2" {$MergedOrganizationTypes = $true}
     }    
 
     # Choose if you would like to enable monitoring for the imported websites.
-    while ($DisableWebsiteMonitoring -notin (1,2)) {$DisableWebsiteMonitoring = Read-Host "1) Leave Website Monitoring enabled `n2) Disable Website Monitoring`n(1/2)"}
+    while ($DisableWebsiteMonitoring -notin (1,2, $true, $false)) {$DisableWebsiteMonitoring = Read-Host "1) Leave Website Monitoring enabled `n2) Disable Website Monitoring`n(1/2)"}
     switch ($DisableWebsiteMonitoring) {
         "1" {$DisableWebsiteMonitoring = $false}
         "2" {$DisableWebsiteMonitoring = $true}
@@ -370,7 +370,7 @@ if ($InitType -eq 'Full') {
 
 
     ############################### Configuration Settings ###############################
-    while ($ImportConfigurations -notin (1,2)) {$ImportConfigurations = Read-Host "1) Import Configurations `n2) Skip Configurations`n(1/2)"}
+    while ($ImportConfigurations -notin (1,2, $true, $false)) {$ImportConfigurations = Read-Host "1) Import Configurations `n2) Skip Configurations`n(1/2)"}
     switch ($ImportConfigurations) {
         "1" {$ImportConfigurations = $true}
         "2" {$ImportConfigurations = $false}
@@ -385,7 +385,7 @@ if ($InitType -eq 'Full') {
 
 
     ############################### Contact Settings ###############################
-    while ($ImportContacts -notin (1,2)) {$ImportContacts = Read-Host "1) Import Contacts `n2) Skip Contacts`n(1/2)"}
+    while ($ImportContacts -notin (1,2, $true, $false)) {$ImportContacts = Read-Host "1) Import Contacts `n2) Skip Contacts`n(1/2)"}
     switch ($ImportContacts) {
         "1" {$ImportContacts = $true}
         "2" {$ImportContacts = $false}
@@ -398,7 +398,7 @@ if ($InitType -eq 'Full') {
     $ConImportIcon = "fas fa-users"
 
     ############################### Flexible Asset Layouts ###############################
-    while ($ImportFlexibleAssetLayouts -notin (1,2)) {$ImportFlexibleAssetLayouts = Read-Host "1) Import Asset Layouts `n2) Skip Asset Layouts`n(1/2)"}
+    while ($ImportFlexibleAssetLayouts -notin (1,2, $true, $false)) {$ImportFlexibleAssetLayouts = Read-Host "1) Import Asset Layouts `n2) Skip Asset Layouts`n(1/2)"}
     switch ($ImportFlexibleAssetLayouts) {
         "1" {$ImportFlexibleAssetLayouts = $true}
         "2" {$ImportFlexibleAssetLayouts = $false}
@@ -409,7 +409,7 @@ if ($InitType -eq 'Full') {
     $FlexibleLayoutPrefix = $environmentSettings.FAPromptPrefix
 
     ############################### Flexible Assets ###############################
-    while ($ImportFlexibleAssets -notin (1,2)) {$ImportFlexibleAssets = Read-Host "1) Import Assets `n2) Skip Assets`n(1/2)"}
+    while ($ImportFlexibleAssets -notin (1,2, $true, $false)) {$ImportFlexibleAssets = Read-Host "1) Import Assets `n2) Skip Assets`n(1/2)"}
     switch ($ImportFlexibleAssets) {
         "1" {$ImportFlexibleAssets = $true}
         "2" {$ImportFlexibleAssets = $false}
@@ -417,27 +417,27 @@ if ($InitType -eq 'Full') {
 
 
     ############################### Articles ###############################
-    while ($ImportArticles -notin (1,2)) {$ImportArticles = Read-Host "1) Import Articles `n2) Skip Articles`n(1/2)"}
+    while ($ImportArticles -notin (1,2, $true, $false)) {$ImportArticles = Read-Host "1) Import Articles `n2) Skip Articles`n(1/2)"}
     switch ($ImportArticles) {
         "1" {$ImportArticles = $true}
         "2" {$ImportArticles = $false}
     }
 
     ############################### Passwords ###############################
-    while ($ImportPasswords -notin (1,2)) {$ImportPasswords = Read-Host "1) Import Passwords `n2) Skip Passwords`n(1/2)"}
+    while ($ImportPasswords -notin (1,2, $true, $false)) {$ImportPasswords = Read-Host "1) Import Passwords `n2) Skip Passwords`n(1/2)"}
     switch ($ImportPasswords) {
         "1" {$ImportPasswords = $true}
         "2" {$ImportPasswords = $false}
     }
 
     ############################### Unattended ###############################
-    while ($NonInteractive -notin (1,2)) {$NonInteractive = Read-Host "1) Run normally `n2) Perform this migration noninteractively `n(1/2)"}
+    while ($NonInteractive -notin (1,2, $true, $false)) {$NonInteractive = Read-Host "1) Run normally `n2) Perform this migration noninteractively `n(1/2)"}
     switch ($NonInteractive) {
         "1" {$NonInteractive = $false}
         "2" {$NonInteractive = $true}
     }    
     ############################### Scoping ###############################
-    while ($ScopedMigration -notin (1,2)) {$ScopedMigration = Read-Host "1) Run normally `n2) Perform migration scoped to certain companies `n(1/2)"}
+    while ($ScopedMigration -notin (1,2, $true, $false)) {$ScopedMigration = Read-Host "1) Run normally `n2) Perform migration scoped to certain companies `n(1/2)"}
     switch ($ScopedMigration) {
         "1" {$ScopedMigration = $false}
         "2" {$ScopedMigration = $true}
@@ -445,8 +445,8 @@ if ($InitType -eq 'Full') {
     ############################## Checklists ##############################
     while ($importChecklists -notin  @(1,2, $true, $false)) {$importChecklists = Read-Host "Would you like to import Checklists? (requires web access to ITGlue).`n 1) No, Skip Checklists (Default)`n 2) Yes, Import Checklists (requires JWT, more difficult)`n(1/2)"}
     switch ($importChecklists) {
-        "1" {$importChecklists = $false}
-        "2" {$importChecklists = $true}
+        "2" {$importChecklists = $false}
+        "1" {$importChecklists = $true}
     }
 
     ############################ PasswordFolders ############################
