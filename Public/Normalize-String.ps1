@@ -560,6 +560,7 @@ function ChoseBest-ByName {
     param ([string]$Name,[array]$choices,[string]$prop='name')
 return $($choices | ForEach-Object {
 [pscustomobject]@{Choice = $_; Score  = $(Get-SimilaritySafe -a "$Name" -b $(if ([string]::IsNullOrEmpty($prop)){$_} else {$_.$prop}))}} | where-object {$_.Score -ge 0.97} | Sort-Object Score -Descending | select-object -First 1).Choice
+
 }
 
 function Get-SafeCount {

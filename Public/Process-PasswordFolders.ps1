@@ -1,5 +1,6 @@
-if (-not (Get-Command -Name Get-EnsuredPath -ErrorAction SilentlyContinue)) {     . "$($(get-childitem -path "." -Recurse -file "Init-OptionsAndLogs.ps1" | Select-Object -first 1).fullname)" }
 if (-not (Get-Command -Name Get-ITGPasswordFolders -ErrorAction SilentlyContinue)) { . "$($(get-childitem -path "." -Recurse -file "Get-PasswordFolders.ps1" | Select-Object -first 1).fullname)"}
+if (-not (Get-Command -Name Get-EnsuredPath -ErrorAction SilentlyContinue)) { . "$($(get-childitem -path "." -Recurse -file "Init-OptionsAndLogs.ps1" | Select-Object -first 1).fullname)"}
+if (-not (Get-Command -Name Get-SimilaritySafe -ErrorAction SilentlyContinue)) { . "$($(get-childitem -path "." -Recurse -file "normalize-string.ps1" | Select-Object -first 1).fullname)"}
 
 $global_password_folders = @()
 $PFMappings = $PFMappings ?? @{}
@@ -53,6 +54,10 @@ function Get-HuduPasswordFolderNameFromPath {
     }
 }
 
+if (-not $MatchedCompanies -or $matchedCompanies.count -lt 1){
+    write-host "Can't preload password folders without matched companies, skipping preload of password folders."
+    return
+} 
 
 # $PFMappings["Software &"]="Software & Applications"
 # $PFMappings["Software and"]="Software & Applications"

@@ -79,6 +79,7 @@ $FontAwesomeUpgrade = Get-FontAwesomeMap
 . $PSScriptRoot\Public\JWT-Auth.ps1
 . $PSScriptRoot\Public\NetworkInformation.ps1
 . $PSScriptRoot\Public\PreFlightTests.ps1
+############################### End of Functions ###############################
 
 if (-not (Get-Command -Name Get-UserFlagSetup -ErrorAction SilentlyContinue)) { . $PSScriptRoot\Public\Add-OptionalFlags.ps1 }
 
@@ -115,20 +116,23 @@ if ($backups -notin @("Y", "y")) {
     exit 1
 }
 
-if (Test-Path -Path "$MigrationLogs") {
-    if ($ResumePrevious -eq $true) {
-        Write-Host "A previous attempt has been found job will be resumed from the last successful section" -ForegroundColor Green
-        $ResumeFound = $true
+    if (Test-Path -Path "$MigrationLogs") {
+        if (-not ([string]::IsNullOrEmpty($guiSettingsDir)) -and (test-path $guiSettingsDir)){
+            Write-Host "Settings loaded from frontend, skipping path checks for logs/errors dir. Migration log dir was set to: $MigrationLogs; Gui settings at $guiSettingsDir" -ForegroundColor Green
+        } elseif ($ResumePrevious -eq $true) {
+            Write-Host "A previous attempt has been found job will be resumed from the last successful section" -ForegroundColor Green
+            $ResumeFound = $true
+        } else {
+            Write-Host "A previous attempt has been found, resume is disabled so this will be lost, if you haven't reverted to a snapshot, a resume is recommended" -ForegroundColor Red
+            Write-TimedMessage -Timeout 12 -Message "Press any key to continue or ctrl + c to quit and edit the ResumePrevious setting" -DefaultResponse "proceed with new migration, do not resume"
+            $ResumeFound = $false
+        }
     } else {
-        Write-Host "A previous attempt has been found, resume is disabled so this will be lost, if you haven't reverted to a snapshot, a resume is recommended" -ForegroundColor Red
-        Write-TimedMessage -Timeout 12 -Message "Press any key to continue or ctrl + c to quit and edit the ResumePrevious setting" -DefaultResponse "proceed with new migration, do not resume"
+        Write-Host "No previous runs found creating log directory"
+        $null = New-Item "$MigrationLogs" -ItemType "directory"
         $ResumeFound = $false
     }
-} else {
-    Write-Host "No previous runs found creating log directory"
-    $null = New-Item "$MigrationLogs" -ItemType "directory"
-    $ResumeFound = $false
-}
+
 
 
 # Setup some variables
@@ -1830,7 +1834,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Articles.json")) {
                                 }
                                 try {                                    
                                     $NewImageURL = $UploadImage.public_photo.url.replace($HuduBaseDomain, '')
-                                    
+									
                                     # Update the <img> tag src
                                     $imageObject.src = [string]$NewImageURL
                                     Write-Host "Setting <img>.src to: $NewImageURL"
@@ -2352,6 +2356,11 @@ write-host "wrapup 8/10... Placing checklists / checklist templates if user-conf
 if ($true -eq $importChecklists){
     . .\public\Process-Checklists.ps1
 }
+if ($true -eq $ImportConfigInterfaces){
+    write-host "Calculations for addresses can take a while. Please be patient. If it looks like it's stuck, it's just crunching numbers from your $($MatchedConfigurations.count) possible configurations"
+    $MatchedInterfaces = Invoke-HuduConfigurationIPAMSync -MatchedConfigurations $MatchedConfigurations
+}
+
 
 write-host "wrapup 9/10... adding missing relations (this can take a long while). Some errors may appear but can be safely ignored."  -ForegroundColor DarkCyan
 # set retry to off/false in HuduAPI module, this will save time during adding potentially existent relations.
