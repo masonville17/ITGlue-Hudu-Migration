@@ -1833,8 +1833,8 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Articles.json")) {
                                     continue
                                 }
                                 try {                                    
-                                    $NewImageURL = $UploadImage.public_photo.url.replace($HuduBaseDomain, '/')
-                                    
+                                    $NewImageURL = $UploadImage.public_photo.url.replace($HuduBaseDomain, '')
+									
                                     # Update the <img> tag src
                                     $imageObject.src = [string]$NewImageURL
                                     Write-Host "Setting <img>.src to: $NewImageURL"
