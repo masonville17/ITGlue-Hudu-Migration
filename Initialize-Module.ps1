@@ -499,39 +499,18 @@ $MigrationLogs = $environmentSettings.MigrationLogs
 $passwordsCSVvalidated = $false
 
 while ($passwordsCSVvalidated -eq $false) {
-    if (Test-Path -Path $(join-path -path $ITGLueExportPath -childpath "passwords.csv") -ErrorAction SilentlyContinue) {
-        Write-Host "Password CSV found at $(join-path -path $ITGLueExportPath -childpath "passwords.csv")" -ForegroundColor Cyan
+    if (Test-Path -Path $(join-path -path $settings.ITGLueExportPath -childpath "passwords.csv") -ErrorAction SilentlyContinue) {
+        Write-Host "Password CSV found at $(join-path -path $settings.ITGLueExportPath -childpath "passwords.csv")" -ForegroundColor Cyan
         $passwordsCSVvalidated = $true
     } elseif ((2,$false) -contains $ImportPasswords -and (2,$false) -contains $ImportFlexibleAssets) {
-        write-host "passwords.csv not found at $(join-path -path $ITGLueExportPath -childpath "passwords.csv"), but since you have chosen to skip both flexible assets and passwords, this file is not needed specifically for your migration. If you later choose to migrate either of those sections, make sure to have a passwords.csv in your export folder." -ForegroundColor Yellow; start-sleep -seconds 2;
+        write-host "passwords.csv not found at $(join-path -path $settings.ITGLueExportPath -childpath "passwords.csv"), but since you have chosen to skip both flexible assets and passwords, this file is not needed specifically for your migration. If you later choose to migrate either of those sections, make sure to have a passwords.csv in your export folder." -ForegroundColor Yellow; start-sleep -seconds 2;
         $passwordsCSVvalidated = $true
     } else {
-        Write-Host "passwords.csv not found at $(join-path -path $ITGLueExportPath -childpath "passwords.csv"). You'll want to take another export, this time ensuring that passwords are included. Failure to do so will result in missing password data. Passwords.csv is used in both flexible assets and passwords portions of the migration." -ForegroundColor Red;  start-sleep -seconds 2;
-        $overrideNoPassCSV = read-host "Press Enter to re-check for the file if you have extracted a new export to $($ITGLueExportPath), or Ctrl+C to exit. To continue anyway without passwords CSV (not reccomended), please enter this phrase exactly with no quotes: 'migrate-anyway'"
+        Write-Host "passwords.csv not found at $(join-path -path $settings.ITGLueExportPath -childpath "passwords.csv"). You'll want to take another export, this time ensuring that passwords are included. Failure to do so will result in missing password data. Passwords.csv is used in both flexible assets and passwords portions of the migration." -ForegroundColor Red;  start-sleep -seconds 2;
+        $overrideNoPassCSV = read-host "Press Enter to re-check for the file if you have extracted a new export to $($settings.ITGLueExportPath), or Ctrl+C to exit. To continue anyway without passwords CSV (not reccomended), please enter this phrase exactly with no quotes: 'migrate-anyway'"
         if ($overrideNoPassCSV -ieq 'migrate-anyway') {
             Write-Host "Continuing without passwords.csv. Password data will be missing from the migration." -ForegroundColor Yellow
             $passwordsCSVvalidated = $true
         }
     }
 }
-
-############################### End of Settings ###############################
-
-############################## Load ImageMagick ###############################
-# Import ImageMagick Modules, prompt for path if the module is missing
-#Write-Host "Adding Imagemagick commands from dot NET assemblies" -ForegroundColor Cyan
-#$ImageMagickPath = "$PSScriptRoot\Magick.NET-Q16-AnyCPU.dll"
-<# while (!('ImageMagick.MagickImage'-as [type])) {
-    if (Test-Path "$ImageMagickPath") {
-        try {
-            Add-Type -Path $ImageMagickPath -ErrorAction Stop
-        }
-        catch { 
-            throw "Failed to load ImageMagick, please check the files and try again. `n $_"
-        }
-    }
-    else {
-        $ImageMagickPath = (Read-Host "Failed to load ImageMagick. Please provide path for the three DLLs.") + "\Magick.NET-Q16-AnyCPU.dll"
-    }
-} #>
-################### Initialization Complete #############################
