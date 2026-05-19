@@ -60,16 +60,16 @@ $FontAwesomeUpgrade = Get-FontAwesomeMap
 # Add Timed (Noninteractive) Messages Helper
 . $PSScriptRoot\Public\Write-TimedMessage.ps1
 
-# Add numeral casting helper method
+# Add numeral casting, password folder fetching, and article stub starting helpers
 . $PSScriptRoot\Public\Get-CastIfNumeric.ps1
+. $PSScriptRoot\Public\Start-ArticleStubs.ps1
+. $PSScriptRoot\Public\Get-PasswordFolders.ps1
 
 # Add migration scope helper
 . $PSScriptRoot\Public\Set-MigrationScope.ps1
-. $PSScriptRoot\Public\Start-ArticleStubs.ps1
 
 # Other JWT-Auth / Advanced Post-Run Imports
 . $PSScriptRoot\Public\Get-Checklists.ps1
-. $PSScriptRoot\Public\Get-PasswordFolders.ps1
 
 # Add String/Filename Normalization Helper, image Normalization helper
 . $PSScriptRoot\Public\Normalize-String.ps1
