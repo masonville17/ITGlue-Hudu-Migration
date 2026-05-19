@@ -349,6 +349,7 @@ if ($InitType -eq 'Full') {
 
     ############################### Articles ###############################
     $ImportArticles = $ImportArticles ?? $(Select-ObjectFromList -message "Import Articles?" -objects @($true, $false) -allowNull $false)
+    $IncludeIgnoredFirstArticleDirectory = $IncludeIgnoredFirstArticleDirectory ?? [bool]($(Select-ObjectFromList -message "would you like to include root directories when migrating article folders? default behavior is no/false" -objects @($false,$true) -allowNull $false) ?? $false)
 
     ############################### Passwords ###############################
     $ImportPasswords = $ImportPasswords ?? $(Select-ObjectFromList -message "Import Passwords?" -objects @($true, $false) -allowNull $false)
@@ -373,16 +374,17 @@ if ($InitType -eq 'Full') {
 
     ############################## Interfaces ##############################
     $ImportConfigInterfaces = $ImportConfigInterfaces ?? $(Select-ObjectFromList -message "Would you like to import configuration interfaces (IP Addresses) into IPam in Hudu (requires more time)?" -objects @($true, $false) -allowNull $false)
-    ############################ Image Anchors Regex ############################
-    $OptionalImageAnchorReplace = $OptionalImageAnchorReplace ?? $true
 
+    ############################# Junk Layouts #############################
     $skipIntegratorLayouts = $skipIntegratorLayouts ?? $(Select-ObjectFromList -message "[Other, default false] Would you like to skip importing Integrator Layouts? These are often containing data that goes unused." -objects @($true, $false) -allowNull $false)
-
+    
+    ############################ Sane deafaults that can be overridden ############################
+    $OptionalImageAnchorReplace = $OptionalImageAnchorReplace ?? $true
     $allowSettingFlagsAndTypes = $allowSettingFlagsAndTypes ?? $false
+    $AllowEmptyPasswords = $AllowEmptyPasswords ?? $true
 
-    $IncludeIgnoredFirstArticleDirectory = $IncludeIgnoredFirstArticleDirectory ?? [bool]($(Select-ObjectFromList -message "would you like to include root directories when migrating article folders? default behavior is no/false" -objects @($false,$true) -allowNull $false) ?? $false)
 
-    $AllowEmptyPasswords = $AllowEmptyPasswords ?? [bool]($(Select-ObjectFromList -message "would you like to skip empty passwords if there are any in ITGlue. Make sure this is false if you have vaulted passwords. (default - no - keep empty passwords/false)" -objects @($false,$true) -allowNull $false) ?? $false)
+    # $AllowEmptyPasswords = $AllowEmptyPasswords ?? [bool]($(Select-ObjectFromList -message "would you like to skip empty passwords if there are any in ITGlue. Make sure this is false if you have vaulted passwords. (default - no - keep empty passwords/false)" -objects @($false,$true) -allowNull $false) ?? $false)
 
 }
 
