@@ -1,6 +1,6 @@
-if (-not (Get-Command -Name Get-EnsuredPath -ErrorAction SilentlyContinue)) { . .\Public\Init-OptionsAndLogs.ps1 }
-if (-not (Get-Command -Name Get-ITGPasswordFolders -ErrorAction SilentlyContinue)) { . $PSScriptRoot\Public\Get-PasswordFolders.ps1 }
-if (-not (Get-Command -Name Get-SimilaritySafe -ErrorAction SilentlyContinue)) { . $PSScriptRoot\Public\normalize-string.ps1 }
+if (-not (Get-Command -Name Get-ITGPasswordFolders -ErrorAction SilentlyContinue)) { . "$($(get-childitem -path "." -Recurse -file "Get-PasswordFolders.ps1" | Select-Object -first 1).fullname)"}
+if (-not (Get-Command -Name Get-EnsuredPath -ErrorAction SilentlyContinue)) { . "$($(get-childitem -path "." -Recurse -file "Init-OptionsAndLogs.ps1" | Select-Object -first 1).fullname)"}
+if (-not (Get-Command -Name Get-SimilaritySafe -ErrorAction SilentlyContinue)) { . "$($(get-childitem -path "." -Recurse -file "normalize-string.ps1" | Select-Object -first 1).fullname)"}
 
 $global_password_folders = @()
 $PFMappings = $PFMappings ?? @{}

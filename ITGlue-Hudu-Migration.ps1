@@ -60,16 +60,16 @@ $FontAwesomeUpgrade = Get-FontAwesomeMap
 # Add Timed (Noninteractive) Messages Helper
 . $PSScriptRoot\Public\Write-TimedMessage.ps1
 
-# Add numeral casting helper method
+# Add numeral casting, password folder fetching, and article stub starting helpers
 . $PSScriptRoot\Public\Get-CastIfNumeric.ps1
+. $PSScriptRoot\Public\Start-ArticleStubs.ps1
+. $PSScriptRoot\Public\Get-PasswordFolders.ps1
 
 # Add migration scope helper
 . $PSScriptRoot\Public\Set-MigrationScope.ps1
-. $PSScriptRoot\Public\Start-ArticleStubs.ps1
 
 # Other JWT-Auth / Advanced Post-Run Imports
 . $PSScriptRoot\Public\Get-Checklists.ps1
-. $PSScriptRoot\Public\Get-PasswordFolders.ps1
 
 # Add String/Filename Normalization Helper, image Normalization helper
 . $PSScriptRoot\Public\Normalize-String.ps1
@@ -78,7 +78,7 @@ $FontAwesomeUpgrade = Get-FontAwesomeMap
 . $PSScriptRoot\Public\Get-ITGFieldPopulated.ps1
 . $PSScriptRoot\Public\JWT-Auth.ps1
 . $PSScriptRoot\Public\NetworkInformation.ps1
-. $PSScriptRoot\Public\PreFlightTests.ps
+. $PSScriptRoot\Public\PreFlightTests.ps1
 ############################### End of Functions ###############################
 
 if (-not (Get-Command -Name Get-UserFlagSetup -ErrorAction SilentlyContinue)) { . $PSScriptRoot\Public\Add-OptionalFlags.ps1 }
@@ -116,20 +116,23 @@ if ($backups -notin @("Y", "y")) {
     exit 1
 }
 
-if (Test-Path -Path "$MigrationLogs") {
-    if ($ResumePrevious -eq $true) {
-        Write-Host "A previous attempt has been found job will be resumed from the last successful section" -ForegroundColor Green
-        $ResumeFound = $true
+    if (Test-Path -Path "$MigrationLogs") {
+        if (-not ([string]::IsNullOrEmpty($guiSettingsDir)) -and (test-path $guiSettingsDir)){
+            Write-Host "Settings loaded from frontend, skipping path checks for logs/errors dir. Migration log dir was set to: $MigrationLogs; Gui settings at $guiSettingsDir" -ForegroundColor Green
+        } elseif ($ResumePrevious -eq $true) {
+            Write-Host "A previous attempt has been found job will be resumed from the last successful section" -ForegroundColor Green
+            $ResumeFound = $true
+        } else {
+            Write-Host "A previous attempt has been found, resume is disabled so this will be lost, if you haven't reverted to a snapshot, a resume is recommended" -ForegroundColor Red
+            Write-TimedMessage -Timeout 12 -Message "Press any key to continue or ctrl + c to quit and edit the ResumePrevious setting" -DefaultResponse "proceed with new migration, do not resume"
+            $ResumeFound = $false
+        }
     } else {
-        Write-Host "A previous attempt has been found, resume is disabled so this will be lost, if you haven't reverted to a snapshot, a resume is recommended" -ForegroundColor Red
-        Write-TimedMessage -Timeout 12 -Message "Press any key to continue or ctrl + c to quit and edit the ResumePrevious setting" -DefaultResponse "proceed with new migration, do not resume"
+        Write-Host "No previous runs found creating log directory"
+        $null = New-Item "$MigrationLogs" -ItemType "directory"
         $ResumeFound = $false
     }
-} else {
-    Write-Host "No previous runs found creating log directory"
-    $null = New-Item "$MigrationLogs" -ItemType "directory"
-    $ResumeFound = $false
-}
+
 
 
 # Setup some variables
@@ -275,6 +278,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Companies.json")) {
 	
         if (($importCOption -eq "A") -or ($importCOption -eq "S") ) {		
             foreach ($unmatchedcompany in ($MatchedCompanies | Where-Object { $_.Matched -eq $false })) {
+
                 $unmatchedcompany.ITGCompanyObject.attributes.'quick-notes' = ($ITGCompaniesFromCSV | Where-Object {$_.id -eq $unmatchedcompany.ITGID}).quick_notes
                 $unmatchedcompany.ITGCompanyObject.attributes.alert = ($ITGCompaniesFromCSV | Where-Object {$_.id -eq $unmatchedcompany.ITGID}).alert
                 Confirm-Import -ImportObjectName $($unmatchedcompany.CompanyName) -ImportObject $unmatchedcompany -ImportSetting $importCOption
@@ -1260,6 +1264,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\AssetLayouts.json")) 
             } else {
                 $NewLayout = New-HuduAssetLayout -name "$($FlexibleLayoutPrefix)$($UnmatchedLayout.ITGObject.attributes.name)-Assets" -icon "fas fa-$NewIcon" -color "#6136ff" -icon_color "#ffffff" -include_passwords $true -include_photos $true -include_comments $true -include_files $true -fields $TempLayoutFields 
             }
+
             $MatchedNewLayout = Get-HuduAssetLayouts -layoutid $NewLayout.asset_layout.id
 
             $UnmatchedLayout.HuduObject = $MatchedNewLayout
@@ -1831,7 +1836,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Articles.json")) {
                                 }
                                 try {                                    
                                     $NewImageURL = $UploadImage.public_photo.url.replace($HuduBaseDomain, '')
-                                    
+
                                     # Update the <img> tag src
                                     $imageObject.src = [string]$NewImageURL
                                     Write-Host "Setting <img>.src to: $NewImageURL"
@@ -2134,32 +2139,38 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Passwords.json")) {
 
                         }
                         if ([string]::IsNullOrWhiteSpace($unmatchedPassword.ITGObject.attributes.password) -or $unmatchedPassword.ITGObject.attributes.password.Length -lt 1) {
-                            $manualActions.add([PSCustomObject]@{
-                                name              = "$($unmatchedPassword.ITGObject.attributes.name)"
-                                company_id        = $company.HuduCompanyObject.ID
-                                description       = $unmatchedPassword.ITGObject.attributes.notes
-                                passwordable_type = $PasswordableType
-                                passwordable_id   = $ParentItemID
-                                in_portal         = $false
-                                password          = ""
-                                Type              = "Password"
-				                Hudu_URL      	  = $unmatchedPassword.HuduObject.url
-                                ITG_URL           = if ($url = $unmatchedPassword.ITGObject.attributes.url) {$url} Else {$unmatchedPassword.ITGObject.attributes.'resource-url'}
-                                username          = $unmatchedPassword.ITGObject.attributes.username
-                                otpsecret         = "removed for security purposes"
-                                problem           = "password was null or empty"
-                            })
-                            $unmatchedPassword.matched = $false
-                            Write-Warning "$($HuduNewPassword.Name) Has been skipped and added to manual actions due to being empty"                            
-                        } else {
-                            $HuduNewPassword = (New-HuduPassword @PasswordSplat).asset_password 
-                            $unmatchedPassword.matched = $true
-                            $unmatchedPassword.HuduID = $HuduNewPassword.id
-                            $unmatchedPassword."HuduObject" = $HuduNewPassword
-                            $unmatchedPassword.Imported = "Created-By-Script"
-                            $ImportsMigrated = $ImportsMigrated + 1
-                            Write-host "$($HuduNewPassword.Name) Has been created in Hudu"
+                            if ($true -eq $($AllowEmptyPasswords ?? $false)) {
+                                write-host "Password value is empty for $($unmatchedPassword.ITGObject.attributes.name), assuming it is vaulted. setting blank password with A256GCM encryption to preserve the record and metadata for replacing later." -ForegroundColor DarkCyan
+                                $PasswordSplat.password = "A256GCM.WAS-BLANK-REPLACE-WITH-REAL-PASSWORD"
+                            } else {
+                                $manualActions.add([PSCustomObject]@{
+                                    name              = "$($unmatchedPassword.ITGObject.attributes.name)"
+                                    company_id        = $company.HuduCompanyObject.ID
+                                    description       = $unmatchedPassword.ITGObject.attributes.notes
+                                    passwordable_type = $PasswordableType
+                                    passwordable_id   = $ParentItemID
+                                    in_portal         = $false
+                                    password          = ""
+                                    Type              = "Password"
+                                    Hudu_URL      	  = $unmatchedPassword.HuduObject.url
+                                    ITG_URL           = if ($url = $unmatchedPassword.ITGObject.attributes.url) {$url} Else {$unmatchedPassword.ITGObject.attributes.'resource-url'}
+                                    username          = $unmatchedPassword.ITGObject.attributes.username
+                                    otpsecret         = "removed for security purposes"
+                                    problem           = "password was null or empty"
+                                })
+                                $unmatchedPassword.matched = $false
+                                Write-Warning "$($HuduNewPassword.Name) Has been skipped and added to manual actions due to being empty"
+                                continue
+                            }
                         }
+                        $HuduNewPassword = (New-HuduPassword @PasswordSplat).asset_password 
+                        $unmatchedPassword.matched = $true
+                        $unmatchedPassword.HuduID = $HuduNewPassword.id
+                        $unmatchedPassword."HuduObject" = $HuduNewPassword
+                        $unmatchedPassword.Imported = "Created-By-Script"
+                        $ImportsMigrated = $ImportsMigrated + 1
+                        Write-host "$($HuduNewPassword.Name) Has been created in Hudu"
+                        
                     }
                 }
             }
