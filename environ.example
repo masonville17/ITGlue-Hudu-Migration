@@ -100,6 +100,8 @@ $FolderNamingMode = "Name Based on Full Path with Delimiter" # how to name the p
                     # "Name Based on Root-Level-Directory"
                     # "Name Based on Current/Leaf-Level Directory"
 
+$AllowEmptyPasswords = $true # set this to true if you have company passwords vaulted.
+
 # pre-designated array/list of prescoped/preselected companies for scoped migration (for faster testing, ignore this if you want scoped migration, you'll select your own set)
 # prescoped Companies
 # $Prescoped = @(
