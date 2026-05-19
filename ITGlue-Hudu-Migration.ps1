@@ -2140,8 +2140,8 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Passwords.json")) {
                         }
                         if ([string]::IsNullOrWhiteSpace($unmatchedPassword.ITGObject.attributes.password) -or $unmatchedPassword.ITGObject.attributes.password.Length -lt 1) {
                             if ($true -eq $($AllowEmptyPasswords ?? $false)) {
-                                write-host "Password value is empty for $($unmatchedPassword.ITGObject.attributes.name), assuming it is vaulted. setting blank password with AES-256-GCM encryption to preserve the record and metadata for replacing later." -ForegroundColor DarkCyan
-                                $PasswordSplat.password = "AES-256-GCM"
+                                write-host "Password value is empty for $($unmatchedPassword.ITGObject.attributes.name), assuming it is vaulted. setting blank password with A256GCM encryption to preserve the record and metadata for replacing later." -ForegroundColor DarkCyan
+                                $PasswordSplat.password = "A256GCM.WAS-BLANK-REPLACE-WITH-REAL-PASSWORD"
                             } else {
                                 $manualActions.add([PSCustomObject]@{
                                     name              = "$($unmatchedPassword.ITGObject.attributes.name)"
