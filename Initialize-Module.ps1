@@ -417,11 +417,14 @@ $vaultedCSVPath = $(join-path -path $settings.ITGLueExportPath -childpath "vault
 $possiblyVaultedPasswords = if ($VaultedPasswords.Count -gt 0) { $true } else { $false }
 $uniqueVaultedOrgs = $($VaultedPasswords.organization | Sort-Object -Unique)
 $userVaultedPasswordsDirPresent = test-path $vaultedCSVPath
-if ($possiblyVaultedPasswords -eq $true -and $userVaultedPasswordsDirPresent -eq $false) {
-    Write-Host "It looks like you may have around $($VaultedPasswords.count) vaulted passwords from $($uniqueVaultedOrgs.count) in this export, but the vaulted passwords directory doesn't seem to be present. If you have vaulted passwords, make sure to include the vaulted password directory, $vaultedCSVPath" -ForegroundColor Yellow
+$vaultCSVsPresent = @(Get-ChildItem -Path $vaultedCSVPath -Filter "*.csv" -ErrorAction SilentlyContinue)
+
+if ($possiblyVaultedPasswords -eq $true -and ($userVaultedPasswordsDirPresent -eq $false -or $vaultCSVsPresent.Count -eq 0)) {
+    Write-Host "It looks like you may have around $($VaultedPasswords.count) vaulted passwords from $($uniqueVaultedOrgs.count) unique organizations in this export, but the vaulted passwords directory doesn't seem to be present. If you have vaulted passwords, make sure to include the vaulted password directory, $vaultedCSVPath" -ForegroundColor Yellow
     New-Item -Path $vaultedCSVPath -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
     write-host "you can un-vault passwords at a later time, but it is reccomended to download password csv's for the following orgs and place them in the vaulted password directory to ensure those passwords are decrypted" -ForegroundColor Yellow
     $uniqueVaultedOrgs | ForEach-Object {write-host "Organization: $_" -ForegroundColor Cyan}
-    read-host "Press enter to continue"
+    read-host "Press enter to continue (whether or not you decide to place unvaulted csv files or not)"
 }
-$shouldRunVaultJob = [bool](($possiblyVaultedPasswords -eq $true) -and (get-childitem -Path $vaultedCSVPath -Filter "*.csv" -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0)
+$vaultCSVsPresent = @(Get-ChildItem -Path $vaultedCSVPath -Filter "*.csv" -ErrorAction SilentlyContinue)
+$shouldRunVaultJob = [bool](($possiblyVaultedPasswords -eq $true) -and ($vaultCSVsPresent.Count -gt 0))
