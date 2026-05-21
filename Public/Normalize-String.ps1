@@ -26,6 +26,41 @@ function Normalize-String {
     return "$ascii$extension"
 }
 
+function Set-ReleaseArtifact {
+    Remove-Item -Path "$($(get-childitem -path "." -Recurse -Directory "artifacts" | Select-Object -first 1).fullname)\*.txt" -Force -ErrorAction SilentlyContinue
+    Get-GitCheckoutInfo | Out-File "$($(get-childitem -path "." -Recurse -Directory "artifacts" | Select-Object -first 1).fullname)\$($(Get-Date -Format o | ForEach-Object { $_ -replace ":", "." })).txt" -Encoding utf8
+}
+
+
+function Get-GitCheckoutInfo {
+    [CmdletBinding()]
+    param(
+        [string]$Path = (Get-Location).Path
+    )
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        return "No Git installation found, cannot discern checkout info"
+    }
+    Push-Location -LiteralPath $Path
+    try {
+        $insideRepo = git rev-parse --is-inside-work-tree 2>$null
+        if ($LASTEXITCODE -ne 0 -or $insideRepo -ne 'true') {
+            return "Not inside a Git repository"
+        }
+        $commit = git rev-parse HEAD 2>$null
+        $branch = git branch --show-current 2>$null
+        if ([string]::IsNullOrWhiteSpace($branch)) {
+            $branch = '(detached HEAD)'
+        }
+        $remoteUrl = git remote get-url origin 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            $remoteUrl = $null
+        }
+        return "using commit $commit from branch $branch of repo $remoteUrl"
+    }
+    finally {
+        Pop-Location
+    }
+}
 
 function Limit-FilenameLength {
     param (
@@ -601,7 +636,9 @@ function Format-MigrationSummary {
     $lines.Add("Started At:   $ScriptStartTime")
     $lines.Add("Completed At: $CompletedAt")
     $lines.Add("Duration:     $($Duration.ToString('hh\:mm\:ss'))")
-    $lines.Add("Hudu Version:  $($CurrentVersion ?? ([version]$(Get-HuduAppInfo).version))")
+    $lines.Add("Git Info:     $(Get-GitCheckoutInfo)")
+    $lines.Add("Hudu Host:    $(Get-HuduBaseurl)")
+    $lines.Add("Hudu Version: $($CurrentVersion ?? ([version]$(Get-HuduAppInfo).version))")
     $lines.Add('-------------------------------------------------------')
 
     foreach ($item in $migratedItems.GetEnumerator()) {
@@ -619,6 +656,7 @@ function Format-MigrationSummary {
 
     $lines -join [Environment]::NewLine
 }
+
 
 $InvocationWelcomeText = @'
 #######################################################"

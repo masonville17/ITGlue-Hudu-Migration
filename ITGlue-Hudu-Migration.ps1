@@ -90,12 +90,14 @@ Write-Host $LiabilityWarning -ForegroundColor Red
 
 # Prompt for backups, initialize modules, check versions
 $backups=$(if ($true -eq $NonInteractive) {"Y"} else {Read-Host "Y/n"})
-$ScriptStartTime = $(Get-Date)
+
 $CurrentVersion =  Set-ExternalModulesInitialized `
         -RequiredHuduVersion ([version]"2.39.6") `
         -DisallowedVersions @([version]"2.37.0") `
         -HuduBaseURL $($hudubaseurl ?? $settings.HuduBaseDomain ?? $null) `
         -HuduAPIKey $($huduapikey ?? $settings.HuduApiKey ?? $null)
+$ScriptStartTime = $(Get-Date)
+
 
 write-host "Checking your API keys to make sure they are scoped for password access"
 $itglueScopeOk = Test-ITGlueAPIKeyPasswordScope
