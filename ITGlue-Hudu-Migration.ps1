@@ -2384,8 +2384,7 @@ if ($true -eq ($shouldRunVaultJob ?? $false)){
 ############################### End ###############################
 
 $VaultedPasswords = $VaultedPasswords ?? @(); $unvaultedMatches = $unvaultedMatches ?? @();
-$MatchedUploadFields = $MatchedUploadFields ?? @{}
-$UnresolvedUploadFields = $UnresolvedUploadFields ?? @{}
+$MatchedUploadFields = $MatchedUploadFields ?? @{}; $UnresolvedUploadFields = $UnresolvedUploadFields ?? @{};
 foreach ($auxilliaryObj in @(@{Name="UnvaultedPasswords"; Created = $unvaultedMatches ?? @()}, @{Name = "passwordfolders"; Created = $MatchedPasswordFolders ?? @() }, @{Name="UploadFields"; Created = $MatchedUploadFields ?? @() }, @{Name="UnresolvedUploadFields"; Created = $UnresolvedUploadFields ?? @() }, @{Name = "checklists"; Created = $MatchedChecklists ?? @() }, @{Name="Interfaces-IPAM"; Created = ($MatchedInterfaces ?? @())})) {
     write-host "Writing json dump for $($auxilliaryObj.Name) created during migration for reference in manual actions and for audit purposes"
     $auxilliaryObj.Created | ConvertTo-Json -depth 75 | Out-File $(join-path $settings.MigrationLogs "created-$($auxilliaryObj.Name).json")
