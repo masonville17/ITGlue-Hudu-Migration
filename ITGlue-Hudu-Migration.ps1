@@ -2382,7 +2382,7 @@ if ($true -eq $allowSettingFlagsAndTypes){
     . .\public\Add-HuduFlagsFlagtypes.ps1
 }
 
-write-host "wrapup 10/11... $(if ($true -eq ($shouldRunVaultJob ?? $false)) {"Running"} else {"Skipping"}) vault job to update vaulted passwords with real values..."
+write-host "wrapup 11/11... $(if ($true -eq ($shouldRunVaultJob ?? $false)) {"Running"} else {"Skipping"}) vault job to update vaulted passwords with real values..."
 if ($true -eq ($shouldRunVaultJob ?? $false)){
     . .\Un-Vault-Passwords.ps1
 }
