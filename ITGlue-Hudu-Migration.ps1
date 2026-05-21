@@ -2313,19 +2313,18 @@ foreach ($companyFound in $UpdateCompanyNotes.HuduCompanyObject) {
 $companyNotesUpdated | ConvertTo-Json -depth 100 |Out-file "$MigrationLogs\ReplacedCompaniesURL.json"
 Write-TimedMessage -Timeout 3 -Message "Snapshot Point: Company Notes URLs Replaced. Continue?"  -DefaultResponse "continue to Manual Actions, please."
 
-if ($null -eq $OptionalImageAnchorReplace -or $OptionalImageAnchorReplace -eq $true -or $OptionalImageAnchorReplace -eq 1){
-    Write-Host "Replacing links to hosted public photos in Hudu Articles"
-    if (-not $(get-command -name Set-HuduImageAnchorsReplaced -ErrorAction SilentlyContinue)){. $PSScriptRoot\Public\Set-HuduImageAnchorsReplaced.ps1}
-    . $PSScriptRoot\Public\Replace-HardCodedImages.ps1
-    
-    Get-AllHuduHostedImageAnchorsReplaced -allhuduArticles $(get-huduarticles)
-} else {write-host "skpping image-anchors replace in Hudu articles"}
+Write-Host "Replacing links to hosted public photos in Hudu Articles"
+if (-not $(get-command -name Set-HuduImageAnchorsReplaced -ErrorAction SilentlyContinue)){. $PSScriptRoot\Public\Set-HuduImageAnchorsReplaced.ps1}
+. $PSScriptRoot\Public\Replace-HardCodedImages.ps1
 
+Get-AllHuduHostedImageAnchorsReplaced -allhuduArticles $(get-huduarticles)
 
 ############################### Wrap-Up ###############################
+
 write-host "wrapup 1/10... setting asset layouts as active, enabling advanced website monitoring features" -ForegroundColor DarkCyan
 foreach ($layout in Get-HuduAssetLayouts) {write-host "setting $($(Set-HuduAssetLayout -id $layout.id -Active $true).asset_layout.name) as active" }
-if ($DisableWebsiteMonitoring) {write-host "leaving websites unmonitored per user-config"} else {$MatchedWebsites.HuduObject | Where-Object {$_.id -and $_.id -gt 0} | Foreach-Object {write-host "Enabling advanced monitoring features for $($(Set-HuduWebsite -id $_.id -EnableDMARC 'true' -EnableDKIM 'true' -EnableSPF 'true' -DisableDNS 'false' -DisableSSL 'false' -DisableWhois 'false' -Paused 'false').name)" -ForegroundColor DarkCyan}}
+if ($true -eq $DisableWebsiteMonitoring) {write-host "leaving websites unmonitored per user-config"} else {$MatchedWebsites.HuduObject | Where-Object {$_.id -and $_.id -gt 0} | Foreach-Object {write-host "Enabling advanced monitoring features for $($(Set-HuduWebsite -id $_.id -EnableDMARC 'true' -EnableDKIM 'true' -EnableSPF 'true' -DisableDNS 'false' -DisableSSL 'false' -DisableWhois 'false' -Paused 'false').name)" -ForegroundColor DarkCyan}}
+
 write-host "wrapup 2/10... adding attachments (this can take a while)"
 . .\Add-HuduAttachmentsViaAPI.ps1
 
@@ -2335,13 +2334,35 @@ if ($true -eq $ImportConfigInterfaces){
     $MatchedInterfaces = Invoke-HuduConfigurationIPAMSync -MatchedConfigurations $MatchedConfigurations
 }
 
-write-host "wrapup 4/10... archiving passwords, assets, configurations as they had been in ITGlue (this can take a while)"  -ForegroundColor DarkCyan
+write-host "wrapup 4/10... $(if ($true -eq $allowSettingFlagsAndTypes) {"Setting"} else {"Skipping"}) optional flags and flag types..."
+if ($true -eq $allowSettingFlagsAndTypes){
+    . .\public\Add-HuduFlagsFlagtypes.ps1
+}
+
+write-host "wrapup 5/10... Setting Standalone articles with attachments to filename..."
+foreach ($a in $(Get-HuduArticles | where-object {$_.content -eq "Empty Document in IT Glue Export - Please Check IT Glue" -and $_.name -ilike "*.*"})){Set-HuduArticle -id $a.id -content "Please see attached file, $($a.name)"}
+if (get-command -name Set-HapiErrorsDirectory -ErrorAction SilentlyContinue){try {Set-HapiErrorsDirectory -skipRetry $false} catch {}}
+
+write-host "wrapup 6/10... Placing password folders if user-configured to do so... $($importPasswordFolders)"
+if ($true -eq $importPasswordFolders){
+    . .\public\Process-PasswordFolders.ps1
+}
+write-host "wrapup 7/10... Placing checklists / checklist templates if user-configured to do so... $($importChecklists)"
+if ($true -eq $importChecklists){
+    . .\public\Process-Checklists.ps1
+}
+
+write-host "wrapup 8/10... adding missing relations (this can take a long while). Some errors may appear but can be safely ignored."  -ForegroundColor DarkCyan
+# set retry to off/false in HuduAPI module, this will save time during adding potentially existent relations.
+if (get-command -name Set-HapiErrorsDirectory -ErrorAction SilentlyContinue){try {Set-HapiErrorsDirectory -skipRetry $true} catch {}}
+. .\Get-MissingRelations.ps1
+
+write-host "wrapup 9/10... archiving items..."  -ForegroundColor DarkCyan
 $DocsCsv = import-csv "$ITGLueExportPath\documents.csv"
 $ArchivedPasswords = $MatchedPasswords | Where-Object {$_.itgobject.attributes.archived -eq $true}
 $ArchivedConfigurations = $MatchedConfigurations | Where-Object {$_.ITGObject.attributes.archived -eq $true}    
 $ArchivedAssets = $MatchedAssets | Where-Object {$_.ITGObject.attributes.archived -eq $true}
 
-write-host "wrapup 5/10... archiving items..."  -ForegroundColor DarkCyan
 $ptaresults = $ArchivedPasswords | ForEach-Object {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduPasswordArchive -id $_.huduid -Archive $true}}
 $ctaresults = $ArchivedConfigurations |ForEach-Object {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduAssetArchive -Id $_.huduid -CompanyId $_.huduobject.company_id -Archive $true}}
 $ataresults = $ArchivedAssets |ForEach-Object {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduAssetArchive -Id $_.huduid -CompanyId $_.huduobject.company_id -Archive $true}}
@@ -2354,42 +2375,20 @@ foreach ($obj in @(
     @{Name = "docs";            Archived = $documentArchiveResults ?? @() })) {
     $obj.Archived | ConvertTo-Json -depth 75 | Out-File $(join-path $settings.MigrationLogs "archived-$($obj.Name).json")
 }
-write-host "wrapup 6/10... Setting Standalone articles with attachments to filename..."
-foreach ($a in $(Get-HuduArticles | where-object {$_.content -eq "Empty Document in IT Glue Export - Please Check IT Glue" -and $_.name -ilike "*.*"})){Set-HuduArticle -id $a.id -content "Please see attached file, $($a.name)"}
-if (get-command -name Set-HapiErrorsDirectory -ErrorAction SilentlyContinue){try {Set-HapiErrorsDirectory -skipRetry $false} catch {}}
 
-write-host "wrapup 7/10... Placing password folders if user-configured to do so... $($importPasswordFolders)"
-if ($true -eq $importPasswordFolders){
-    . .\public\Process-PasswordFolders.ps1
-}
-write-host "wrapup 8/10... Placing checklists / checklist templates if user-configured to do so... $($importChecklists)"
-if ($true -eq $importChecklists){
-    . .\public\Process-Checklists.ps1
-}
-if ($true -eq $ImportConfigInterfaces){
-    write-host "Calculations for addresses can take a while. Please be patient. If it looks like it's stuck, it's just crunching numbers from your $($MatchedConfigurations.count) possible configurations"
-    $MatchedInterfaces = Invoke-HuduConfigurationIPAMSync -MatchedConfigurations $MatchedConfigurations
+write-host "wrapup 10/10... $(if ($true -eq ($shouldRunVaultJob ?? $false)) {"Running"} else {"Skipping"}) vault job to update vaulted passwords with real values..."
+if ($true -eq ($shouldRunVaultJob ?? $false)){
+    . .\Un-Vault-Passwords.ps1
 }
 
+############################### End ###############################
 
-write-host "wrapup 9/10... adding missing relations (this can take a long while). Some errors may appear but can be safely ignored."  -ForegroundColor DarkCyan
-# set retry to off/false in HuduAPI module, this will save time during adding potentially existent relations.
-if (get-command -name Set-HapiErrorsDirectory -ErrorAction SilentlyContinue){try {Set-HapiErrorsDirectory -skipRetry $true} catch {}}
-. .\Get-MissingRelations.ps1
-
-write-host "wrapup 10/10... $(if ($true -eq $allowSettingFlagsAndTypes) {"Setting"} else {"Skipping"}) optional flags and flag types..."
-if ($true -eq $allowSettingFlagsAndTypes){
-    . .\public\Add-HuduFlagsFlagtypes.ps1
-}
-
-$MatchedUploadFields = $MatchedUploadFields ?? @{}
-$UnresolvedUploadFields = $UnresolvedUploadFields ?? @{}
-foreach ($auxilliaryObj in @(@{Name = "passwordfolders"; Created = $MatchedPasswordFolders ?? @() }, @{Name="UploadFields"; Created = $MatchedUploadFields ?? @() }, @{Name="UnresolvedUploadFields"; Created = $UnresolvedUploadFields ?? @() }, @{Name = "checklists"; Created = $MatchedChecklists ?? @() }, @{Name="Interfaces-IPAM"; Created = ($MatchedInterfaces ?? @())})) {
+$VaultedPasswords = $VaultedPasswords ?? @(); $unvaultedMatches = $unvaultedMatches ?? @();
+$MatchedUploadFields = $MatchedUploadFields ?? @{}; $UnresolvedUploadFields = $UnresolvedUploadFields ?? @{};
+foreach ($auxilliaryObj in @(@{Name="UnvaultedPasswords"; Created = $unvaultedMatches ?? @()}, @{Name = "passwordfolders"; Created = $MatchedPasswordFolders ?? @() }, @{Name="UploadFields"; Created = $MatchedUploadFields ?? @() }, @{Name="UnresolvedUploadFields"; Created = $UnresolvedUploadFields ?? @() }, @{Name = "checklists"; Created = $MatchedChecklists ?? @() }, @{Name="Interfaces-IPAM"; Created = ($MatchedInterfaces ?? @())})) {
     write-host "Writing json dump for $($auxilliaryObj.Name) created during migration for reference in manual actions and for audit purposes"
     $auxilliaryObj.Created | ConvertTo-Json -depth 75 | Out-File $(join-path $settings.MigrationLogs "created-$($auxilliaryObj.Name).json")
 }
-############################### End ###############################
-
 
 $CompletedAt = Get-Date
 $Duration = New-TimeSpan -Start $ScriptStartTime -End $CompletedAt
@@ -2412,6 +2411,8 @@ $migratedItems = [ordered]@{
     'IPAM Interfaces/Networks/Addresses Migrated'= Get-SafeCount $MatchedInterfaces
     'Upload Fields Migrated'                     = $MatchedUploadFields.count ?? 0
     'Upload Fields Unresolved'                   = $UnresolvedUploadFields.count ?? 0
+    'Vaulted Passwords'                          = $VaultedPasswords.count ?? 0
+    'Unvaulted Matches'                          = $unvaultedMatches.count ?? 0
 }
 
 $archivedItems = [ordered]@{
