@@ -373,7 +373,6 @@ $MatchedFromJson = foreach ($pass in @($hudupasswords)) {
 }
 Write-Host "Please review the matched results below. When you're ready, press Enter to continue with updating Hudu passwords based on the unvaulted passwords from the CSV. If you want to exit without making changes, perform a CTRL+C to stop the script."
 $MatchedFromJson
-read-host "If you want to exit without making changes, perform a CTRL+C to stop the script. Otherwise, press Enter to continue with updating Hudu passwords based on the unvaulted passwords from the CSV."
 
 $MatchedFromJson | Where-Object {$_.FoundInCsv -eq "Yes" -and $_.MatchSource -in @("MatchedPasswords.json HuduID", "MatchedPasswords.json company/name/username/url", "MatchedPasswords.json company/name/username", "Hudu login_url", "Unique name/username/url", "Unique name/username")} | ForEach-Object {Set-HuduPassword -id $_.HuduID -Password $_.UnvaultedPassword}
 
