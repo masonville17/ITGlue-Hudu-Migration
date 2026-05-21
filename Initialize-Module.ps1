@@ -410,3 +410,18 @@ while ($passwordsCSVvalidated -eq $false) {
         }
     }
 }
+
+
+$VaultedPasswords = $(@(Import-Csv -Path $(join-path -path $settings.ITGLueExportPath -childpath "passwords.csv") -ErrorAction SilentlyContinue) | where-object {([string]::isnullorWhitespace($_.password) -or $_.password -ilike "AES256GCM*" -or $_.password -ilike "AES-256-GCM*")})
+$vaultedCSVPath = $(join-path -path $settings.ITGLueExportPath -childpath "vaulted")
+$possiblyVaultedPasswords = if ($VaultedPasswords.Count -gt 0) { $true } else { $false }
+$uniqueVaultedOrgs = $($VaultedPasswords.organization | Sort-Object -Unique)
+$userVaultedPasswordsDirPresent = test-path $vaultedCSVPath
+if ($possiblyVaultedPasswords -eq $true -and $userVaultedPasswordsDirPresent -eq $false) {
+    Write-Host "It looks like you may have around $($VaultedPasswords.count) vaulted passwords from $($uniqueVaultedOrgs.count) in this export, but the vaulted passwords directory doesn't seem to be present. If you have vaulted passwords, make sure to include the vaulted password directory, $vaultedCSVPath" -ForegroundColor Yellow
+    New-Item -Path $vaultedCSVPath -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
+    write-host "you can un-vault passwords at a later time, but it is reccomended to download password csv's for the following orgs and place them in the vaulted password directory to ensure those passwords are decrypted" -ForegroundColor Yellow
+    $uniqueVaultedOrgs | ForEach-Object {write-host "Organization: $_" -ForegroundColor Cyan}
+    read-host "Press enter to continue"
+}
+$shouldRunVaultJob = [bool](($possiblyVaultedPasswords -eq $true) -and (get-childitem -Path $vaultedCSVPath -Filter "*.csv" -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0)
