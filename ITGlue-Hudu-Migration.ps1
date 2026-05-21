@@ -2387,9 +2387,10 @@ if ($true -eq ($shouldRunVaultJob ?? $false)){
     . .\Un-Vault-Passwords.ps1
 }
 
+$VaultedPasswords = $VaultedPasswords ?? @(); $unvaultedMatches = $unvaultedMatches ?? @();
 $MatchedUploadFields = $MatchedUploadFields ?? @{}
 $UnresolvedUploadFields = $UnresolvedUploadFields ?? @{}
-foreach ($auxilliaryObj in @(@{Name = "passwordfolders"; Created = $MatchedPasswordFolders ?? @() }, @{Name="UploadFields"; Created = $MatchedUploadFields ?? @() }, @{Name="UnresolvedUploadFields"; Created = $UnresolvedUploadFields ?? @() }, @{Name = "checklists"; Created = $MatchedChecklists ?? @() }, @{Name="Interfaces-IPAM"; Created = ($MatchedInterfaces ?? @())})) {
+foreach ($auxilliaryObj in @(@{Name="UnvaultedPasswords"; Created = $unvaultedMatches ?? @()}, @{Name = "passwordfolders"; Created = $MatchedPasswordFolders ?? @() }, @{Name="UploadFields"; Created = $MatchedUploadFields ?? @() }, @{Name="UnresolvedUploadFields"; Created = $UnresolvedUploadFields ?? @() }, @{Name = "checklists"; Created = $MatchedChecklists ?? @() }, @{Name="Interfaces-IPAM"; Created = ($MatchedInterfaces ?? @())})) {
     write-host "Writing json dump for $($auxilliaryObj.Name) created during migration for reference in manual actions and for audit purposes"
     $auxilliaryObj.Created | ConvertTo-Json -depth 75 | Out-File $(join-path $settings.MigrationLogs "created-$($auxilliaryObj.Name).json")
 }
@@ -2417,6 +2418,8 @@ $migratedItems = [ordered]@{
     'IPAM Interfaces/Networks/Addresses Migrated'= Get-SafeCount $MatchedInterfaces
     'Upload Fields Migrated'                     = $MatchedUploadFields.count ?? 0
     'Upload Fields Unresolved'                   = $UnresolvedUploadFields.count ?? 0
+    'Vaulted Passwords'                          = $VaultedPasswords.count ?? 0
+    'Unvaulted Matches'                          = $unvaultedMatches.count ?? 0
 }
 
 $archivedItems = [ordered]@{
