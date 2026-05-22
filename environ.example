@@ -50,7 +50,7 @@ $settings = @{
     IncludeITGlueID         = $true
 
     # Split configurations into individual asset layouts y/n
-    SplitConfigurations     = $true
+    SplitConfigurations     = $false
 }
 
 # Primary Secrets
