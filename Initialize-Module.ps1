@@ -419,8 +419,6 @@ while ($passwordsCSVvalidated -eq $false) {
     } elseif ($passwordsCSVOptional) {
         Write-Host "passwords.csv not found at $passwordsCSVPath, but since $passwordsCSVOptionalReason, this file is not needed specifically for your migration. If you later choose to migrate either of those sections, make sure to have a passwords.csv in your export folder." -ForegroundColor Yellow; Start-Sleep -Seconds 2
         $passwordsCSVvalidated = $true
-    } elseif ($true -eq ($NonInteractive ?? $false)) {
-        throw "passwords.csv was not found at $passwordsCSVPath, and this migration needs it because passwords or flexible assets are selected. Re-export from IT Glue with passwords included, or disable both password and flexible asset imports."
     } else {
         Write-Host "passwords.csv not found at $passwordsCSVPath. You'll want to take another export, this time ensuring that passwords are included. Failure to do so will result in missing password data. Passwords.csv is used in both flexible assets and passwords portions of the migration." -ForegroundColor Red; Start-Sleep -Seconds 2
         $overrideNoPassCSV = Read-Host "Press Enter to re-check for the file if you have extracted a new export to $resolvedITGlueExportPath, or Ctrl+C to exit. To continue anyway without passwords CSV (not recommended), please enter this phrase exactly with no quotes: 'migrate-anyway'"
@@ -460,9 +458,7 @@ if ($passwordsCSVFound -and $overrideNoPassCSV -ine 'migrate-anyway') {
         New-Item -Path $vaultedCSVPath -ItemType Directory -Force -ErrorAction SilentlyContinue | Out-Null
         Write-Host "You can un-vault passwords at a later time, but it is recommended to download password CSVs for the following orgs and place them in the vaulted password directory to ensure those passwords are decrypted:" -ForegroundColor Yellow
         $uniqueVaultedOrgs | ForEach-Object { Write-Host "Organization: $_" -ForegroundColor Cyan }
-        if ($true -ne ($NonInteractive ?? $false)) {
-            Read-Host "Press Enter after placing unvaulted CSV files in $vaultedCSVPath, or press Enter to continue without them"
-        }
+        Read-Host "Press Enter after placing unvaulted CSV files in $vaultedCSVPath, or press Enter to continue without them"
     }
 
     $userVaultedPasswordsDirPresent = Test-Path -LiteralPath $vaultedCSVPath -PathType Container -ErrorAction SilentlyContinue
