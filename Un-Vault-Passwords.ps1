@@ -1,6 +1,11 @@
 
 
-$sourceCSVpath = $(join-path -path $settings.ITGLueExportPath -childpath "vaulted")
+$resolvedITGlueExportPath = $ITGLueExportPath ?? $environmentSettings.ITGLueExportPath ?? $settings.ITGLueExportPath
+if ([string]::IsNullOrWhiteSpace($resolvedITGlueExportPath)) {
+    throw "ITGlue export path is blank. Please set ITGLueExportPath before running the vaulted password update."
+}
+
+$sourceCSVpath = $vaultedCSVPath ?? $(Join-Path -Path $resolvedITGlueExportPath -ChildPath "vaulted")
 $combinedCSVPath = $(join-path -path $environmentSettings.MigrationLogs -childpath "combined.csv")
 Get-ChildItem -path $sourceCSVpath -Recurse -Filter *.csv | Import-Csv | Export-Csv $combinedCSVPath -NoTypeInformation
 $unvaultedpasswords = Import-Csv -Path $combinedCSVPath
@@ -31,12 +36,12 @@ if (Test-Path -LiteralPath $MatchedPasswordsJson -PathType Leaf) {
 
 $allHuduPasswords = @(Get-HuduPasswords)
 $hudupasswords = @($allHuduPasswords | Where-Object {
-    $_.password -ilike "A256GCM.*" -or # typical format
+    $_.password -ilike "AES256GCM*" -or # typical format
     $_.password -ilike "AES-256-GCM*"  # format sometimes used when blank
 })
 Write-Host "Loaded $($allHuduPasswords.Count) Hudu passwords, $($hudupasswords.Count) vaulted placeholder passwords, and $($unvaultedpasswords.Count) CSV rows."
 if ($hudupasswords.Count -eq 0 -or ($unvaultedpasswords.Count -eq 0)) {
-    Write-Warning "No Hudu passwords with A256GCM/AES-256-GCM placeholder format found or no unvaulted passwords found. Please ensure you have the correct JSON file and CSV file and that they contain the expected data."
+    Write-Warning "No Hudu passwords with AES256GCM/AES-256-GCM placeholder format found or no unvaulted passwords found. Please ensure you have the correct JSON file and CSV file and that they contain the expected data."
     return
 }
 function Get-PropertyValueSafe {
