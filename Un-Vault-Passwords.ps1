@@ -11,7 +11,6 @@ Get-ChildItem -path $sourceCSVpath -Recurse -Filter *.csv | Import-Csv | Export-
 $unvaultedpasswords = Import-Csv -Path $combinedCSVPath
 $MigrationLogs = $MigrationLogs ?? $environmentSettings.MigrationLogs
 $MatchedPasswordsJson =  "$MigrationLogs\Passwords.json"
-read-host "Loaded $($unvaultedpasswords.Count) unvaulted passwords from combined CSV at '$combinedCSVPath'."
 
 while ([string]::IsNullOrWhiteSpace($combinedCSVPath) -or -not (Test-Path -Path $combinedCSVPath -PathType Leaf)) {
     $combinedCSVPath = Read-Host "Please enter the path to the CSV file containing the unvaulted passwords (or type 'exit' to quit)"
