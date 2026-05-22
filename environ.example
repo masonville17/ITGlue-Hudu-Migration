@@ -89,7 +89,6 @@ $IncludeIgnoredFirstArticleDirectory = $true  # set this to 'false' to exclude t
 $ImportConfigInterfaces              = $true  # default true;  this creates IPAM addresses + networks in Hudu
 $NonInteractive                      = $true  # Select $false for interactive steps, $true for noninteractive/no pauses (default)
 $skipIntegratorLayouts               = $true  # do you want to skip flexible asset layouts from integrators? they are generally have the phrase '(auto)' in the name
-$AllowEmptyPasswords                 = $true # set this to true if you have company passwords vaulted.
          
 $allowSettingFlagsAndTypes           = $false # Apply flags and flag types during the migration; requires Hudu 2.40+
 $ScopedMigration                     = $false # If you want to scope migration to just come companies, set to 2/$true  (default 1/$false)
