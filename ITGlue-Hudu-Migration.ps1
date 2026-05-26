@@ -60,16 +60,16 @@ $FontAwesomeUpgrade = Get-FontAwesomeMap
 # Add Timed (Noninteractive) Messages Helper
 . $PSScriptRoot\Public\Write-TimedMessage.ps1
 
-# Add numeral casting helper method
+# Add numeral casting, password folder fetching, and article stub starting helpers
 . $PSScriptRoot\Public\Get-CastIfNumeric.ps1
+. $PSScriptRoot\Public\Start-ArticleStubs.ps1
+. $PSScriptRoot\Public\Get-PasswordFolders.ps1
 
 # Add migration scope helper
 . $PSScriptRoot\Public\Set-MigrationScope.ps1
-. $PSScriptRoot\Public\Start-ArticleStubs.ps1
 
 # Other JWT-Auth / Advanced Post-Run Imports
 . $PSScriptRoot\Public\Get-Checklists.ps1
-. $PSScriptRoot\Public\Get-PasswordFolders.ps1
 
 # Add String/Filename Normalization Helper, image Normalization helper
 . $PSScriptRoot\Public\Normalize-String.ps1
@@ -78,7 +78,7 @@ $FontAwesomeUpgrade = Get-FontAwesomeMap
 . $PSScriptRoot\Public\Get-ITGFieldPopulated.ps1
 . $PSScriptRoot\Public\JWT-Auth.ps1
 . $PSScriptRoot\Public\NetworkInformation.ps1
-. $PSScriptRoot\Public\PreFlightTests.ps
+. $PSScriptRoot\Public\PreFlightTests.ps1
 ############################### End of Functions ###############################
 
 if (-not (Get-Command -Name Get-UserFlagSetup -ErrorAction SilentlyContinue)) { . $PSScriptRoot\Public\Add-OptionalFlags.ps1 }
@@ -90,12 +90,14 @@ Write-Host $LiabilityWarning -ForegroundColor Red
 
 # Prompt for backups, initialize modules, check versions
 $backups=$(if ($true -eq $NonInteractive) {"Y"} else {Read-Host "Y/n"})
-$ScriptStartTime = $(Get-Date)
+
 $CurrentVersion =  Set-ExternalModulesInitialized `
         -RequiredHuduVersion ([version]"2.39.6") `
         -DisallowedVersions @([version]"2.37.0") `
         -HuduBaseURL $($hudubaseurl ?? $settings.HuduBaseDomain ?? $null) `
         -HuduAPIKey $($huduapikey ?? $settings.HuduApiKey ?? $null)
+$ScriptStartTime = $(Get-Date)
+
 
 write-host "Checking your API keys to make sure they are scoped for password access"
 $itglueScopeOk = Test-ITGlueAPIKeyPasswordScope
@@ -116,20 +118,23 @@ if ($backups -notin @("Y", "y")) {
     exit 1
 }
 
-if (Test-Path -Path "$MigrationLogs") {
-    if ($ResumePrevious -eq $true) {
-        Write-Host "A previous attempt has been found job will be resumed from the last successful section" -ForegroundColor Green
-        $ResumeFound = $true
+    if (Test-Path -Path "$MigrationLogs") {
+        if (-not ([string]::IsNullOrEmpty($guiSettingsDir)) -and (test-path $guiSettingsDir)){
+            Write-Host "Settings loaded from frontend, skipping path checks for logs/errors dir. Migration log dir was set to: $MigrationLogs; Gui settings at $guiSettingsDir" -ForegroundColor Green
+        } elseif ($ResumePrevious -eq $true) {
+            Write-Host "A previous attempt has been found job will be resumed from the last successful section" -ForegroundColor Green
+            $ResumeFound = $true
+        } else {
+            Write-Host "A previous attempt has been found, resume is disabled so this will be lost, if you haven't reverted to a snapshot, a resume is recommended" -ForegroundColor Red
+            Write-TimedMessage -Timeout 12 -Message "Press any key to continue or ctrl + c to quit and edit the ResumePrevious setting" -DefaultResponse "proceed with new migration, do not resume"
+            $ResumeFound = $false
+        }
     } else {
-        Write-Host "A previous attempt has been found, resume is disabled so this will be lost, if you haven't reverted to a snapshot, a resume is recommended" -ForegroundColor Red
-        Write-TimedMessage -Timeout 12 -Message "Press any key to continue or ctrl + c to quit and edit the ResumePrevious setting" -DefaultResponse "proceed with new migration, do not resume"
+        Write-Host "No previous runs found creating log directory"
+        $null = New-Item "$MigrationLogs" -ItemType "directory"
         $ResumeFound = $false
     }
-} else {
-    Write-Host "No previous runs found creating log directory"
-    $null = New-Item "$MigrationLogs" -ItemType "directory"
-    $ResumeFound = $false
-}
+
 
 
 # Setup some variables
@@ -275,6 +280,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Companies.json")) {
 	
         if (($importCOption -eq "A") -or ($importCOption -eq "S") ) {		
             foreach ($unmatchedcompany in ($MatchedCompanies | Where-Object { $_.Matched -eq $false })) {
+
                 $unmatchedcompany.ITGCompanyObject.attributes.'quick-notes' = ($ITGCompaniesFromCSV | Where-Object {$_.id -eq $unmatchedcompany.ITGID}).quick_notes
                 $unmatchedcompany.ITGCompanyObject.attributes.alert = ($ITGCompaniesFromCSV | Where-Object {$_.id -eq $unmatchedcompany.ITGID}).alert
                 Confirm-Import -ImportObjectName $($unmatchedcompany.CompanyName) -ImportObject $unmatchedcompany -ImportSetting $importCOption
@@ -1260,6 +1266,7 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\AssetLayouts.json")) 
             } else {
                 $NewLayout = New-HuduAssetLayout -name "$($FlexibleLayoutPrefix)$($UnmatchedLayout.ITGObject.attributes.name)-Assets" -icon "fas fa-$NewIcon" -color "#6136ff" -icon_color "#ffffff" -include_passwords $true -include_photos $true -include_comments $true -include_files $true -fields $TempLayoutFields 
             }
+
             $MatchedNewLayout = Get-HuduAssetLayouts -layoutid $NewLayout.asset_layout.id
 
             $UnmatchedLayout.HuduObject = $MatchedNewLayout
@@ -1830,8 +1837,8 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Articles.json")) {
                                     continue
                                 }
                                 try {                                    
-                                    $NewImageURL = $UploadImage.public_photo.url.replace($HuduBaseDomain, '/')
-                                    
+                                    $NewImageURL = $UploadImage.public_photo.url.replace($HuduBaseDomain, '')
+
                                     # Update the <img> tag src
                                     $imageObject.src = [string]$NewImageURL
                                     Write-Host "Setting <img>.src to: $NewImageURL"
@@ -2134,32 +2141,38 @@ if ($ResumeFound -eq $true -and (Test-Path "$MigrationLogs\Passwords.json")) {
 
                         }
                         if ([string]::IsNullOrWhiteSpace($unmatchedPassword.ITGObject.attributes.password) -or $unmatchedPassword.ITGObject.attributes.password.Length -lt 1) {
-                            $manualActions.add([PSCustomObject]@{
-                                name              = "$($unmatchedPassword.ITGObject.attributes.name)"
-                                company_id        = $company.HuduCompanyObject.ID
-                                description       = $unmatchedPassword.ITGObject.attributes.notes
-                                passwordable_type = $PasswordableType
-                                passwordable_id   = $ParentItemID
-                                in_portal         = $false
-                                password          = ""
-                                Type              = "Password"
-				                Hudu_URL      	  = $unmatchedPassword.HuduObject.url
-                                ITG_URL           = if ($url = $unmatchedPassword.ITGObject.attributes.url) {$url} Else {$unmatchedPassword.ITGObject.attributes.'resource-url'}
-                                username          = $unmatchedPassword.ITGObject.attributes.username
-                                otpsecret         = "removed for security purposes"
-                                problem           = "password was null or empty"
-                            })
-                            $unmatchedPassword.matched = $false
-                            Write-Warning "$($HuduNewPassword.Name) Has been skipped and added to manual actions due to being empty"                            
-                        } else {
-                            $HuduNewPassword = (New-HuduPassword @PasswordSplat).asset_password 
-                            $unmatchedPassword.matched = $true
-                            $unmatchedPassword.HuduID = $HuduNewPassword.id
-                            $unmatchedPassword."HuduObject" = $HuduNewPassword
-                            $unmatchedPassword.Imported = "Created-By-Script"
-                            $ImportsMigrated = $ImportsMigrated + 1
-                            Write-host "$($HuduNewPassword.Name) Has been created in Hudu"
+                            if ($true -eq $($AllowEmptyPasswords ?? $true)) {
+                                write-host "Password value is empty for $($unmatchedPassword.ITGObject.attributes.name), assuming it is vaulted. setting blank password with A256GCM encryption to preserve the record and metadata for replacing later." -ForegroundColor DarkCyan
+                                $PasswordSplat.password = "A256GCM.WAS-BLANK-REPLACE-WITH-REAL-PASSWORD"
+                            } else {
+                                $manualActions.add([PSCustomObject]@{
+                                    name              = "$($unmatchedPassword.ITGObject.attributes.name)"
+                                    company_id        = $company.HuduCompanyObject.ID
+                                    description       = $unmatchedPassword.ITGObject.attributes.notes
+                                    passwordable_type = $PasswordableType
+                                    passwordable_id   = $ParentItemID
+                                    in_portal         = $false
+                                    password          = ""
+                                    Type              = "Password"
+                                    Hudu_URL      	  = $unmatchedPassword.HuduObject.url
+                                    ITG_URL           = if ($url = $unmatchedPassword.ITGObject.attributes.url) {$url} Else {$unmatchedPassword.ITGObject.attributes.'resource-url'}
+                                    username          = $unmatchedPassword.ITGObject.attributes.username
+                                    otpsecret         = "removed for security purposes"
+                                    problem           = "password was null or empty"
+                                })
+                                $unmatchedPassword.matched = $false
+                                Write-Warning "$($HuduNewPassword.Name) Has been skipped and added to manual actions due to being empty"
+                                continue
+                            }
                         }
+                        $HuduNewPassword = (New-HuduPassword @PasswordSplat).asset_password 
+                        $unmatchedPassword.matched = $true
+                        $unmatchedPassword.HuduID = $HuduNewPassword.id
+                        $unmatchedPassword."HuduObject" = $HuduNewPassword
+                        $unmatchedPassword.Imported = "Created-By-Script"
+                        $ImportsMigrated = $ImportsMigrated + 1
+                        Write-host "$($HuduNewPassword.Name) Has been created in Hudu"
+                        
                     }
                 }
             }
@@ -2300,19 +2313,18 @@ foreach ($companyFound in $UpdateCompanyNotes.HuduCompanyObject) {
 $companyNotesUpdated | ConvertTo-Json -depth 100 |Out-file "$MigrationLogs\ReplacedCompaniesURL.json"
 Write-TimedMessage -Timeout 3 -Message "Snapshot Point: Company Notes URLs Replaced. Continue?"  -DefaultResponse "continue to Manual Actions, please."
 
-if ($null -eq $OptionalImageAnchorReplace -or $OptionalImageAnchorReplace -eq $true -or $OptionalImageAnchorReplace -eq 1){
-    Write-Host "Replacing links to hosted public photos in Hudu Articles"
-    if (-not $(get-command -name Set-HuduImageAnchorsReplaced -ErrorAction SilentlyContinue)){. $PSScriptRoot\Public\Set-HuduImageAnchorsReplaced.ps1}
-    . $PSScriptRoot\Public\Replace-HardCodedImages.ps1
-    
-    Get-AllHuduHostedImageAnchorsReplaced -allhuduArticles $(get-huduarticles)
-} else {write-host "skpping image-anchors replace in Hudu articles"}
+Write-Host "Replacing links to hosted public photos in Hudu Articles"
+if (-not $(get-command -name Set-HuduImageAnchorsReplaced -ErrorAction SilentlyContinue)){. $PSScriptRoot\Public\Set-HuduImageAnchorsReplaced.ps1}
+. $PSScriptRoot\Public\Replace-HardCodedImages.ps1
 
+Get-AllHuduHostedImageAnchorsReplaced -allhuduArticles $(get-huduarticles)
 
 ############################### Wrap-Up ###############################
+
 write-host "wrapup 1/10... setting asset layouts as active, enabling advanced website monitoring features" -ForegroundColor DarkCyan
 foreach ($layout in Get-HuduAssetLayouts) {write-host "setting $($(Set-HuduAssetLayout -id $layout.id -Active $true).asset_layout.name) as active" }
-if ($DisableWebsiteMonitoring) {write-host "leaving websites unmonitored per user-config"} else {$MatchedWebsites.HuduObject | Where-Object {$_.id -and $_.id -gt 0} | Foreach-Object {write-host "Enabling advanced monitoring features for $($(Set-HuduWebsite -id $_.id -EnableDMARC 'true' -EnableDKIM 'true' -EnableSPF 'true' -DisableDNS 'false' -DisableSSL 'false' -DisableWhois 'false' -Paused 'false').name)" -ForegroundColor DarkCyan}}
+if ($true -eq $DisableWebsiteMonitoring) {write-host "leaving websites unmonitored per user-config"} else {$MatchedWebsites.HuduObject | Where-Object {$_.id -and $_.id -gt 0} | Foreach-Object {write-host "Enabling advanced monitoring features for $($(Set-HuduWebsite -id $_.id -EnableDMARC 'true' -EnableDKIM 'true' -EnableSPF 'true' -DisableDNS 'false' -DisableSSL 'false' -DisableWhois 'false' -Paused 'false').name)" -ForegroundColor DarkCyan}}
+
 write-host "wrapup 2/10... adding attachments (this can take a while)"
 . .\Add-HuduAttachmentsViaAPI.ps1
 
@@ -2322,13 +2334,35 @@ if ($true -eq $ImportConfigInterfaces){
     $MatchedInterfaces = Invoke-HuduConfigurationIPAMSync -MatchedConfigurations $MatchedConfigurations
 }
 
-write-host "wrapup 4/10... archiving passwords, assets, configurations as they had been in ITGlue (this can take a while)"  -ForegroundColor DarkCyan
+write-host "wrapup 4/10... $(if ($true -eq $allowSettingFlagsAndTypes) {"Setting"} else {"Skipping"}) optional flags and flag types..."
+if ($true -eq $allowSettingFlagsAndTypes){
+    . .\public\Add-HuduFlagsFlagtypes.ps1
+}
+
+write-host "wrapup 5/10... Setting Standalone articles with attachments to filename..."
+foreach ($a in $(Get-HuduArticles | where-object {$_.content -eq "Empty Document in IT Glue Export - Please Check IT Glue" -and $_.name -ilike "*.*"})){Set-HuduArticle -id $a.id -content "Please see attached file, $($a.name)"}
+if (get-command -name Set-HapiErrorsDirectory -ErrorAction SilentlyContinue){try {Set-HapiErrorsDirectory -skipRetry $false} catch {}}
+
+write-host "wrapup 6/10... Placing password folders if user-configured to do so... $($importPasswordFolders)"
+if ($true -eq $importPasswordFolders){
+    . .\public\Process-PasswordFolders.ps1
+}
+write-host "wrapup 7/10... Placing checklists / checklist templates if user-configured to do so... $($importChecklists)"
+if ($true -eq $importChecklists){
+    . .\public\Process-Checklists.ps1
+}
+
+write-host "wrapup 8/10... adding missing relations (this can take a long while). Some errors may appear but can be safely ignored."  -ForegroundColor DarkCyan
+# set retry to off/false in HuduAPI module, this will save time during adding potentially existent relations.
+if (get-command -name Set-HapiErrorsDirectory -ErrorAction SilentlyContinue){try {Set-HapiErrorsDirectory -skipRetry $true} catch {}}
+. .\Get-MissingRelations.ps1
+
+write-host "wrapup 9/10... archiving items..."  -ForegroundColor DarkCyan
 $DocsCsv = import-csv "$ITGLueExportPath\documents.csv"
 $ArchivedPasswords = $MatchedPasswords | Where-Object {$_.itgobject.attributes.archived -eq $true}
 $ArchivedConfigurations = $MatchedConfigurations | Where-Object {$_.ITGObject.attributes.archived -eq $true}    
 $ArchivedAssets = $MatchedAssets | Where-Object {$_.ITGObject.attributes.archived -eq $true}
 
-write-host "wrapup 5/10... archiving items..."  -ForegroundColor DarkCyan
 $ptaresults = $ArchivedPasswords | ForEach-Object {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduPasswordArchive -id $_.huduid -Archive $true}}
 $ctaresults = $ArchivedConfigurations |ForEach-Object {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduAssetArchive -Id $_.huduid -CompanyId $_.huduobject.company_id -Archive $true}}
 $ataresults = $ArchivedAssets |ForEach-Object {if ($_.huduid -and $_.huduid -gt 0) {Set-HuduAssetArchive -Id $_.huduid -CompanyId $_.huduobject.company_id -Archive $true}}
@@ -2341,42 +2375,20 @@ foreach ($obj in @(
     @{Name = "docs";            Archived = $documentArchiveResults ?? @() })) {
     $obj.Archived | ConvertTo-Json -depth 75 | Out-File $(join-path $settings.MigrationLogs "archived-$($obj.Name).json")
 }
-write-host "wrapup 6/10... Setting Standalone articles with attachments to filename..."
-foreach ($a in $(Get-HuduArticles | where-object {$_.content -eq "Empty Document in IT Glue Export - Please Check IT Glue" -and $_.name -ilike "*.*"})){Set-HuduArticle -id $a.id -content "Please see attached file, $($a.name)"}
-if (get-command -name Set-HapiErrorsDirectory -ErrorAction SilentlyContinue){try {Set-HapiErrorsDirectory -skipRetry $false} catch {}}
 
-write-host "wrapup 7/10... Placing password folders if user-configured to do so... $($importPasswordFolders)"
-if ($true -eq $importPasswordFolders){
-    . .\public\Process-PasswordFolders.ps1
-}
-write-host "wrapup 8/10... Placing checklists / checklist templates if user-configured to do so... $($importChecklists)"
-if ($true -eq $importChecklists){
-    . .\public\Process-Checklists.ps1
-}
-if ($true -eq $ImportConfigInterfaces){
-    write-host "Calculations for addresses can take a while. Please be patient. If it looks like it's stuck, it's just crunching numbers from your $($MatchedConfigurations.count) possible configurations"
-    $MatchedInterfaces = Invoke-HuduConfigurationIPAMSync -MatchedConfigurations $MatchedConfigurations
+write-host "wrapup 10/10... $(if ($true -eq ($shouldRunVaultJob ?? $false)) {"Running"} else {"Skipping"}) vault job to update vaulted passwords with real values..."
+if ($true -eq ($shouldRunVaultJob ?? $false)){
+    . .\Un-Vault-Passwords.ps1
 }
 
+############################### End ###############################
 
-write-host "wrapup 9/10... adding missing relations (this can take a long while). Some errors may appear but can be safely ignored."  -ForegroundColor DarkCyan
-# set retry to off/false in HuduAPI module, this will save time during adding potentially existent relations.
-if (get-command -name Set-HapiErrorsDirectory -ErrorAction SilentlyContinue){try {Set-HapiErrorsDirectory -skipRetry $true} catch {}}
-. .\Get-MissingRelations.ps1
-
-write-host "wrapup 10/10... $(if ($true -eq $allowSettingFlagsAndTypes) {"Setting"} else {"Skipping"}) optional flags and flag types..."
-if ($true -eq $allowSettingFlagsAndTypes){
-    . .\public\Add-HuduFlagsFlagtypes.ps1
-}
-
-$MatchedUploadFields = $MatchedUploadFields ?? @{}
-$UnresolvedUploadFields = $UnresolvedUploadFields ?? @{}
-foreach ($auxilliaryObj in @(@{Name = "passwordfolders"; Created = $MatchedPasswordFolders ?? @() }, @{Name="UploadFields"; Created = $MatchedUploadFields ?? @() }, @{Name="UnresolvedUploadFields"; Created = $UnresolvedUploadFields ?? @() }, @{Name = "checklists"; Created = $MatchedChecklists ?? @() }, @{Name="Interfaces-IPAM"; Created = ($MatchedInterfaces ?? @())})) {
+$VaultedPasswords = $VaultedPasswords ?? @(); $unvaultedMatches = $unvaultedMatches ?? @();
+$MatchedUploadFields = $MatchedUploadFields ?? @{}; $UnresolvedUploadFields = $UnresolvedUploadFields ?? @{};
+foreach ($auxilliaryObj in @(@{Name="UnvaultedPasswords"; Created = $unvaultedMatches ?? @()}, @{Name = "passwordfolders"; Created = $MatchedPasswordFolders ?? @() }, @{Name="UploadFields"; Created = $MatchedUploadFields ?? @() }, @{Name="UnresolvedUploadFields"; Created = $UnresolvedUploadFields ?? @() }, @{Name = "checklists"; Created = $MatchedChecklists ?? @() }, @{Name="Interfaces-IPAM"; Created = ($MatchedInterfaces ?? @())})) {
     write-host "Writing json dump for $($auxilliaryObj.Name) created during migration for reference in manual actions and for audit purposes"
     $auxilliaryObj.Created | ConvertTo-Json -depth 75 | Out-File $(join-path $settings.MigrationLogs "created-$($auxilliaryObj.Name).json")
 }
-############################### End ###############################
-
 
 $CompletedAt = Get-Date
 $Duration = New-TimeSpan -Start $ScriptStartTime -End $CompletedAt
@@ -2399,6 +2411,8 @@ $migratedItems = [ordered]@{
     'IPAM Interfaces/Networks/Addresses Migrated'= Get-SafeCount $MatchedInterfaces
     'Upload Fields Migrated'                     = $MatchedUploadFields.count ?? 0
     'Upload Fields Unresolved'                   = $UnresolvedUploadFields.count ?? 0
+    'Vaulted Passwords'                          = $VaultedPasswords.count ?? 0
+    'Unvaulted Matches'                          = $unvaultedMatches.count ?? 0
 }
 
 $archivedItems = [ordered]@{

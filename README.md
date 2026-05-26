@@ -61,7 +61,13 @@ Items marked with **!** require **JWT** authentication (ITGlue session token fro
 
 It's recommended to have a fresh Hudu install with no integrations setup. You'll want to sync things like companies and contacts from your PSA and configurations from your RMM **after** the migration is completed. Don’t setup any custom Asset Layouts and let the migration create the initial assets.
 
-If you have existing asset layouts in Hudu, rename them (for example suffix `"-original"`) before you begin, or use a **layout prefix** in the migration prompts so new ITGlue layouts do not collide with existing Hudu layouts.
+If you have existing asset layouts in Hudu, rename them (for example suffix `"-original"`) before you begin, or use a **layout prefix** in the migration prompts so new ITGlue layouts do not collide with existing Hudu layouts. For newer versions of Hudu, it is recommended that if you are signing in for the first time, to click 'skip setup'
+
+<img width="1135" height="696" alt="image" src="https://github.com/user-attachments/assets/8a9b7e01-8de6-479a-b5de-6e23afdfa470" />
+
+If you've already elected to run through setup, that is fine, but you will need to clear out any asset layouts created as a result. It is slightly easier to 'skip setup' in the first place, but either way is fine, as long as you are using a layout prefix for your migration or (ideally) you've cleaned out any existing layouts before running. (removal pictured below)
+
+<img width="2784" height="1742" alt="image" src="https://github.com/user-attachments/assets/899a777f-c9a5-458a-a1c6-9a9c1fb21cf5" />
 
 **1. Make sure you are on a known-compatible Hudu version**
 
