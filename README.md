@@ -65,7 +65,7 @@ If you have existing asset layouts in Hudu, rename them (for example suffix `"-o
 
 <img width="1135" height="696" alt="image" src="https://github.com/user-attachments/assets/8a9b7e01-8de6-479a-b5de-6e23afdfa470" />
 
-If you've already elected to run through setup, that is fine, but you will need to clear out any asset layouts created as a result. It is slightly easier to 'skip setup' in the first place, but either way is fine, as long as no asset layouts remain before starting.
+If you've already elected to run through setup, that is fine, but you will need to clear out any asset layouts created as a result. It is slightly easier to 'skip setup' in the first place, but either way is fine, as long as you are using a layout prefix for your migration or (ideally) you've cleaned out any existing layouts before running. (removal pictured below)
 
 <img width="2784" height="1742" alt="image" src="https://github.com/user-attachments/assets/899a777f-c9a5-458a-a1c6-9a9c1fb21cf5" />
 
